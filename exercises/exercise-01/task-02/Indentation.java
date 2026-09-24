@@ -1,9 +1,4 @@
-**Task 01_2:**
-
-Enter the following program in a file named `Aufgabe01_2.java` and format it. Pay particular attention to consistent indentation of all blocks.
-
-```java
-public class Aufgabe01_2 { 
+public class Indentation { 
 
     public static void main(String[] args) { 
         
@@ -22,5 +17,4 @@ public class Aufgabe01_2 {
             System.out.println("L"); 
         } } 
     }
-}
-```
+} 

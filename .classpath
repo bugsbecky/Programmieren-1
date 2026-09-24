@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="exercises/exercise-01/task-01"/>
+	<classpathentry kind="src" path="exercises/exercise-01/task-02"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

@@ -1,0 +1,9 @@
+{
+  "java.project.sourcePaths": [
+    "exercises/exercise-01/task-01",
+    "exercises/exercise-01/task-02"
+  ],
+  "java.project.outputPath": "bin",
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.generatesMetadataFilesAtProjectRoot": false
+}
