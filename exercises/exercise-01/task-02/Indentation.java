@@ -1,8 +1,8 @@
 public class Indentation { 
-
     public static void main(String[] args) { 
         
-        System.out.println();ystem.out.println("A"); { 
+        System.out.println(); 
+        System.out.println("A"); { 
             System.out.println("B"); 
             System.out.println("C"); { 
                 System.out.println("D"); { 

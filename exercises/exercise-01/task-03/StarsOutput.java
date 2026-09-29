@@ -19,7 +19,7 @@ public class StarsOutput {
         - adding inclining spaces in front of the declining stars */
         int maxStars = 5;
 
-        for (int i = 1; i < maxStars; i++) {    // inclining Stars to maxStars
+        for (int i = 1; i <= maxStars; i++) {    // inclining Stars to maxStars
             System.out.println("*".repeat(i));
         }
 
