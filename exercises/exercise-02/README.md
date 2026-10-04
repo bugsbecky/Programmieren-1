@@ -90,8 +90,8 @@ Schreiben Sie ein Java-Programm, das die folgende Summe berechnet und ausgibt. N
 
 **Java-Literale (Beispiel)**
 
-| Term        | Schreibweise in Java |
-|-------------|----------------------|
+| Term                      | Schreibweise in Java |
+|---------------------------|----------------------|
 | \(2{,}34 \cdot 10^{6}\)   | `2.34e6`   |
 | \(3{,}45\)                | `3.45`     |
 | \(4{,}56 \cdot 10^{-6}\)  | `4.56e-6`  |
