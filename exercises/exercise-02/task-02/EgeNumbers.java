@@ -4,7 +4,7 @@ public class EgeNumbers {
     // niedrigster long: -9_223_372_036_854_775_808
     public static void main(String[] args) {
     Long minValue = -9_223_372_036_854_775_808L;
-    Long maxValue = 9_223_372_036_854_775_806L;
+    Long maxValue = 9_223_372_036_854_775_807L;
     System.out.println("niedrigster long-wert:" + minValue + "höchster long-wert:" + maxValue);
     }
 }

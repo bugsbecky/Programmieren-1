@@ -10,10 +10,10 @@ public class PersonalData {
         boolean firstDegree = true;
         double prizeOfLatestCanteenMeal = 2.8;
 
-    System.out.print("Vorname:" + forename + "\nNachname:" +
-        name + "\nGeburtstag:" + yearOfBirt + "\nGeschlecht" +
-        "\nStudiengang:" + courseOfStudy + "\naktuelles Semester:" +
-        currentSemester + "\nErststudium" + firstDegree +
-        "\nPreis des letzten Mensaessens:" + prizeOfLatestCanteenMeal);
+        System.out.print("Vorname:" + forename + "\nNachname:" +
+            name + "\nGeburtstag:" + yearOfBirt + "\nGeschlecht" +
+            "\nStudiengang:" + courseOfStudy + "\naktuelles Semester:" +
+            currentSemester + "\nErststudium" + firstDegree +
+            "\nPreis des letzten Mensaessens:" + prizeOfLatestCanteenMeal);
     }
 }
