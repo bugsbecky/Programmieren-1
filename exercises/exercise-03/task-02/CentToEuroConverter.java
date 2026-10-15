@@ -1,6 +1,6 @@
 import java.util.Scanner;
 
-public class EuroToCentConverter {
+public class CentToEuroConverter {
     //umrechnung von eur in ct: 1€ = 100ct also 1€ = 1*e² ct
     public static void main(String[] args) {
         System.out.println("Please enter the numbers of Cent.");
