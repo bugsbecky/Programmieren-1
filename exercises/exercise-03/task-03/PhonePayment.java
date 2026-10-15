@@ -4,28 +4,31 @@ public class PhonePayment {
     public static void main(String[] args) {
         double monthlyPayment = 9.95;
 
-        int inclusiveDatavolume = 5;
-        double costsOf500mbExtraDatavolume = 2.95; //in €
+        int freeGb = 5;
+        double costsPerGb = 2 * 2.95; //in €
 
-        int inclusivePhonecallMinutes = 100;
-        double costOf1ExtraPhonecallMin = 0.9; //in €
+        int freeMinutes = 100;
+        double costPerMinute = 0.09; //in €
 
         Scanner scanner = new Scanner(System.in);
 
 
         System.out.println("Bitte monatliche Telefonminuten eigeben: ");
-        int monthlyPhonecallMinutes = scanner.nextInt();
+        int phonecallMinutes = 12 * scanner.nextInt();
 
         System.out.println("Bitte monatlich genutztes Datenvolumen eingeben: ");
-        int monthlyUsedDatavolume = scanner.nextInt();
+        int usedDatavolume = 12 * scanner.nextInt();
 
         
-        int extraMinutesUsed = monthlyPhonecallminutes - inclusivePhonecallMinutes;
-        int extraDataVolume = monthlyUsedDatavolume - inclusiveDatavolume;
-        double additionalCosts = (extraMinutesUsed * costOfExtraPhonecallMin) + (extraDataVolume * costsOf500mbExtradatavolume);  
+        int extraMinutes = phonecallMinutes - freeMinutes;
+        int extraDataVolume = usedDatavolume - freeGb;
+
+        double additionalCosts = (extraMinutes * costPerMinute) + (extraDataVolume * costsPerGb);  
         double finCosts = 12 * monthlyPayment + additionalCosts;
         
-        System.out.println("Gesamtkosten: " + finCosts);
+        System.out.println("Gesamtkosten: " + additionalCosts);
+
+        //lösung ist Falsch!!
 
         /* ohne if nicht fehlerlos machbar*/
     }
