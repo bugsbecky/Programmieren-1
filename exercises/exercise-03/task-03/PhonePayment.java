@@ -19,11 +19,13 @@ public class PhonePayment {
         System.out.println("Bitte monatlich genutztes Datenvolumen eingeben: ");
         int monthlyUsedDatavolume = scanner.nextInt();
 
-        /*
-        * int extraMinutesUsed = monthlyPhonecallminutes - inclusivePhonecallMinutes
-        * int extraDataVolume = monthlyUsedDatavolume - inclusiveDatavolume
-        * double additionalCosts = (extraMinutesUsed * 0.9) +  
-        */
+        
+        int extraMinutesUsed = monthlyPhonecallminutes - inclusivePhonecallMinutes;
+        int extraDataVolume = monthlyUsedDatavolume - inclusiveDatavolume;
+        double additionalCosts = (extraMinutesUsed * costOfExtraPhonecallMin) + (extraDataVolume * costsOf500mbExtradatavolume);  
+        double finCosts = 12 * monthlyPayment + additionalCosts;
+        
+        System.out.println("Gesamtkosten: " + finCosts);
 
         /* ohne if nicht fehlerlos machbar*/
     }
