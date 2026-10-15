@@ -24,3 +24,6 @@ Optional können Sie dieselben Konstanten aus der Klasse `java.lang.Long` ausgeb
 | `boolean`  | Erststudium ja/nein                      |
 | `double`   | Mensa-Preis, Gleitkomma-Summe            |
 | `long`     | sehr große ganze Zahlen (Aufgabe 02_2)   |
+
+
+ohne Taschenrechner
