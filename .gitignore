@@ -1,0 +1,11 @@
+# Nested git leftovers
+**/.git.bak-nested/
+
+# Compiled Java
+*.class
+bin/
+
+# OS / IDE
+.DS_Store
+.idea/
+*.iml

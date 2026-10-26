@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orchestration graphs · AI Engineering Field Guide</title>
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/flow.css">
+</head>
+<body>
+
+<div id="progress"></div>
+
+<header class="topbar">
+  <button class="tbtn" id="nav-toggle" type="button" aria-label="Open contents" aria-controls="toc" aria-expanded="false">☰</button>
+  <a class="brand" href="../../index.html"><b>ai</b>·field-guide</a>
+  <a class="hub-link" href="../../../../hub/index.html">Learning hub</a>
+  <div class="tools">
+    <button class="tbtn search-btn" id="search-open" type="button" aria-label="Search the guide"><span>Search</span><kbd>⌘K</kbd></button>
+    <button class="tbtn" id="expand-all" type="button">expand</button>
+  </div>
+</header>
+
+<nav class="sidebar" id="toc" aria-label="Topics"></nav>
+
+<main class="main">
+  <div class="content">
+    <header class="topic-head">
+      <div class="kicker">Part 4 · Tools &amp; agents · 21/31</div>
+      <h1>Orchestration graphs</h1>
+      <p class="lead">A while-loop with an LLM inside is an agent engine nobody can see, resume or replay. A graph makes control flow an artifact: named nodes, explicit edges, shared state, a snapshot per step. LangGraph is the reference shape; the concept is the point.</p>
+      <p class="chapter-summary"><b>In this chapter</b> Model orchestration as state transitions with explicit persistence, retries, interrupts and human approval points.</p>
+    </header>
+
+  <div class="beat problem">
+    <h2 class="beat-h" id="problem-the-hidden-loop-is-invisible-and-fragile"><span class="bt">Problem</span><span class="bh">the hidden loop is invisible and fragile</span></h2>
+    <ul>
+      <li><b>Control flow buried in code:</b> the real flowchart hides in nested ifs, retry flags and while-loops. Nobody can review, draw or test it whole.</li>
+      <li><b>Crashes:</b> a 20-minute research run dies at minute 17 (deploy, OOM, spot kill). Plan, tool results and draft lived in RAM. Gone.</li>
+      <li><b>Humans in the loop:</b> a refund approval must pause for hours, then continue exactly where it stopped.</li>
+      <li><b>No replay:</b> "why did it take that branch?" means re-reading logs and guessing, if you logged at all.</li>
+      <li><b>The pattern:</b> agent workflows are long-running, stateful, branchy and failure-prone: exactly what request/response code handles worst.</li>
+    </ul>
+  </div>
+
+  <div class="beat solution">
+    <h2 class="beat-h" id="solution-make-the-control-flow-an-explicit-graph"><span class="bt">Solution</span><span class="bh">make the control flow an explicit graph</span></h2>
+    <ul>
+      <li><b>A graph is nodes (functions), edges (who runs next) and one state object,</b> driven by an engine that ticks, snapshots and routes: the loop you would have written anyway, made explicit.</li>
+      <li><b>Five shapes compose every orchestration:</b> chain (step after step), router (branch), agent loop (think, act, observe, repeat), map-reduce (fan-out, merge), human gate (pause, resume).</li>
+      <li><b>Three homes for the engine:</b> agent frameworks with checkpointers (LangGraph), durable-execution platforms (Temporal, Step Functions, Inngest), or a queue plus an idempotent worker. Production mixes them, see <a class="xl" href="ops.html">ops</a>.</li>
+    </ul>
+    <figure class="diagram graph-pattern-gallery" aria-label="Five orchestration patterns">
+      <div class="graph-patterns">
+        <figure class="graph-pattern"><h3 id="pattern-chain">Chain</h3><div class="mini-flow" aria-label="Step one, then step two, then step three"><span>Step 1</span><b aria-hidden="true">→</b><span>Step 2</span><b aria-hidden="true">→</b><span>Step 3</span></div><figcaption>Fixed steps run in order.</figcaption></figure>
+        <figure class="graph-pattern"><h3 id="pattern-router">Router</h3><div class="mini-flow router-flow" aria-label="Input branches to path A or path B"><span>Input</span><b aria-hidden="true">→</b><span>Branch: A or B</span></div><figcaption>A decision selects one path.</figcaption></figure>
+        <figure class="graph-pattern"><h3 id="pattern-agent-loop">Agent loop</h3><div class="mini-flow" aria-label="Think, act with a tool, observe, then repeat or answer"><span>Think</span><b aria-hidden="true">→</b><span>Act · tool</span><b aria-hidden="true">→</b><span>Observe ↺</span><b aria-hidden="true">→</b><span>Answer</span></div><figcaption>Observe and repeat until done.</figcaption></figure>
+        <figure class="graph-pattern"><h3 id="pattern-map-reduce">Map-reduce</h3><div class="mini-flow" aria-label="Fan out to parallel tasks, then merge"><span>Fan out</span><b aria-hidden="true">→</b><span>Parallel tasks</span><b aria-hidden="true">→</b><span>Merge</span></div><figcaption>Parallel work joins into one result.</figcaption></figure>
+        <figure class="graph-pattern"><h3 id="pattern-human-gate">Human gate</h3><div class="mini-flow" aria-label="Prepare, pause for approval, then execute"><span>Prepare</span><b aria-hidden="true">→</b><span>Pause · approve</span><b aria-hidden="true">→</b><span>Execute</span></div><figcaption>Pause before an effect and resume after approval.</figcaption></figure>
+      </div><figcaption>Who controls the topology: chain, map-reduce and human gate are fixed in code, a router lets the model pick one branch, and only the agent loop lets it decide how many steps run.</figcaption></figure>
+  </div>
+
+  <div class="beat how">
+    <h2 class="beat-h" id="how-nodes-and-edges-state-and-reducers-checkpoints-interrupts"><span class="bt">How</span><span class="bh">nodes and edges · state and reducers · checkpoints · interrupts</span></h2>
+
+    <h3 id="graphs--the-vocabulary">the vocabulary</h3>
+    <ul>
+      <li><b>Node:</b> one function: an LLM call, tool execution, router decision, summarizer or human gate. Pure function of <button class="term" type="button" data-tip="Every node receives the shared state object and returns a partial update that the engine merges back in.">state in, state out</button>.</li>
+      <li><b>Edge:</b> fixed (A always runs after B) or <b>conditional</b>: a function reads state and names the next node. That IS the "agent decides" moment, your old while-loop if/else.</li>
+      <li><b>Superstep:</b> one engine tick: all runnable nodes fire, state snapshots, the next tick begins.</li>
+      <li><b>Fan-out:</b> a node returns a list of Send(task) items; the engine spawns one worker-node instance per task and merges results on the way back.</li>
+    </ul>
+
+    <h3 id="graphs--why-graphs-beat-ad-hoc-while-loops">why graphs beat ad-hoc while-loops</h3>
+    <ul>
+      <li><b>Visible:</b> the graph renders as a diagram, reviews in a PR and cannot drift from runtime, because it IS the runtime.</li>
+      <li><b>Replayable:</b> same input plus saved checkpoint gives the same walk; re-run any historical step exactly.</li>
+      <li><b>Checkpointable:</b> state serialized after every tick gives resume, time-travel debugging and human interrupts for free; they fall out of the model.</li>
+      <li><b>Testable per node:</b> a node is a function over state, unit-testable with a fake state dict; routing logic needs no LLM.</li>
+      <li><b>Enforceable:</b> budgets, timeouts and gates attach to nodes (<a class="xl" href="ops.html">ops</a>).</li>
+    </ul>
+
+    <h3 id="graphs--state-and-reducers-merge-rules-make-parallelism-safe">state and reducers: merge rules make parallelism safe</h3>
+    <ul>
+      <li><b>State is a typed dict</b> shared by all nodes: a blackboard each node reads and writes partial updates to.</li>
+      <li><b>A reducer is a per-key merge rule</b> applied when an update lands: append (messages accumulate), last-write (a verdict replaces), union (found ids), or custom.</li>
+      <li><span class="wlabel gotcha">gotcha</span> two parallel branches writing one key with no reducer is a data race, order undefined. Add a reducer or give branches separate keys.</li>
+      <li><b>Store artifacts by reference:</b> ids and paths to documents and raw tool outputs, not inline blobs. Snapshots stay small, resume stays fast.</li>
+    </ul>
+
+    <h3 id="graphs--checkpointing-resume-after-crash-time-travel-debug">checkpointing: resume after crash, time-travel debug</h3>
+    <ul>
+      <li><b>Every superstep lands in a row</b> keyed by thread_id, one row per (thread, tick). MemorySaver for demos, Postgres for real.</li>
+      <li><b>Resume not restart:</b> a run that dies at step 9 of 10 reloads its last checkpoint and runs only step 9 onward.</li>
+      <li><b>Time-travel debug:</b> fork from any old checkpoint, edit state or input, re-run and compare the two walks. The 2am superpower.</li>
+      <li><b>Multi-turn chat is the same mechanism:</b> a new user message resumes the thread with prior state as the starting checkpoint, see <a class="xl" href="../06-memory/memory.html">memory</a>.</li>
+      <li><b>Versioning gotcha:</b> a run started on graph v1 must finish under v1 semantics; old checkpoints plus new code corrupt state. Drain in-flight runs first, see <a class="xl" href="ops.html">ops</a>.</li>
+    </ul>
+
+    <h3 id="graphs--human-in-the-loop-interrupt-then-resume-with-a-verdict">human-in-the-loop: interrupt, then resume with a verdict</h3>
+    <ul>
+      <li><b>Interrupt before the effect:</b> the engine stops at the node, persists state and releases the worker. No side effect has happened yet.</li>
+      <li><b>Approval is a resume:</b> hours or days later, from any process, the verdict returns from <code>interrupt()</code> in the paused node. Earlier nodes do not re-run.</li>
+      <li><b>Edited state:</b> the reviewer may change values first (fix the amount, drop a step); resume applies the edits to the checkpoint.</li>
+      <li><b>Reject is a route, not a crash:</b> route to cleanup or exit. Gate SLAs, escalation and audit trails live in <a class="xl" href="ops.html">ops</a>.</li>
+    </ul>
+
+    <figure class="diagram">
+      <div class="diag-body">
+        <pre class="mermaid">
+flowchart TB
+  subgraph W["1 · Work loop"]
+    direction LR
+    P["planner"] --> T["tools loop"] --> C["critique"]
+    C -- "revise" --> T
+  end
+  subgraph H["2 · Human gate"]
+    direction LR
+    G{"human&lt;br/&gt;approves?"} -- "approve" --> F["finalize"]
+    G -- "edit state" --> E["apply edits"] --> F
+    G -- "reject" --> X["exit + cleanup"]
+  end
+  W -- "critique ok" --> H
+        </pre>
+      </div><figcaption>Two loops, one exit: critique keeps sending work back to the tools until it passes, and nothing finalizes without a human verdict. Reject leaves through cleanup, not a crash.</figcaption></figure>
+    <p class="note">Planner, tool loop, critique loop, then a human gate before anything final ships. One graph, every topology from above inside it.</p>
+  </div>
+
+  <div class="beat when">
+    <h2 class="beat-h" id="when-graph-or-plain-code"><span class="bt">When</span><span class="bh">graph or plain code</span></h2>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Runtime</th><th class="hu">Use when</th><th class="ha">Avoid when</th><th class="hw">Watch out</th></tr></thead>
+        <tbody>
+          <tr><td class="m">Plain code</td><td class="u">Linear flow, one or two fixed steps, single tool call, a crash just means rerun</td><td class="avoid">Model-driven branching, loops, resume or interrupt needs</td><td class="watch">Scope creep into a hidden graph of ifs</td></tr>
+          <tr><td class="m">Graph + checkpointer</td><td class="u">Agent loops, conditional routing, interrupts, multi-turn state, replay</td><td class="avoid">Pure linear batch jobs, a queue is simpler</td><td class="watch">Trim state before snapshots bloat. Version graphs</td></tr>
+          <tr><td class="m">Queue + idempotent worker</td><td class="u">Batch ingest, background jobs, eval runs, no per-step branching</td><td class="avoid">Conversational flows needing live state</td><td class="watch">At-least-once delivery, see <a class="xl" href="ops.html">ops</a></td></tr>
+          <tr><td class="m">Durable engine (Temporal, Step Functions)</td><td class="u">Multi-day workflows, org-level durability, approvals by email</td><td class="avoid">Small teams, the ops surface is real</td><td class="watch">New runtime to learn, worker versioning</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul>
+      <li><b>When NOT a graph:</b> two fixed steps are a function, a single tool call is plain code around <a class="xl" href="../04-tools-mcp/tool-calling.html">tool calling</a>, a linear nightly batch is a queue plus a worker. Do not adopt the abstraction for the logo.</li>
+    </ul>
+  </div>
+
+  <div class="beat example">
+    <h2 class="beat-h" id="example-a-stategraph-with-a-conditional-edge-and-a-gate"><span class="bt">Example</span><span class="bh">a StateGraph with a conditional edge and a gate</span></h2>
+    <pre class="code" data-lang="python" data-file="approval_graph.py"><code>from typing import TypedDict
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command, interrupt
+
+class State(TypedDict, total=False):
+    draft: str
+    critiques: int
+    approved: bool
+    result: str
+
+def prepare(state: State):
+    # A deterministic offline stand-in for work; no LLM or external tool.
+    return {"draft": "A small example", "critiques": 0}
+
+def critique(state: State):
+    # One bounded revision; this sample finds no flaw and continues to review.
+    return {"critiques": state["critiques"] + 1}
+
+def route(state: State):
+    return "review" if state["critiques"] &gt;= 1 else "critique"
+
+def review(state: State):
+    approved = interrupt({"draft": state["draft"], "critiques": state["critiques"]})
+    return {"approved": bool(approved)}
+
+def finalize(state: State):
+    return {"result": "published" if state["approved"] else "rejected"}
+
+def finish(state: State):
+    return END
+
+builder = StateGraph(State)
+builder.add_node("prepare", prepare)
+builder.add_node("critique", critique)
+builder.add_node("review", review)
+builder.add_node("finalize", finalize)
+builder.add_edge(START, "prepare")
+builder.add_edge("prepare", "critique")
+builder.add_conditional_edges("critique", route, {"critique": "critique", "review": "review"})
+builder.add_conditional_edges("review", lambda state: "finalize", {"finalize": "finalize"})
+builder.add_conditional_edges("finalize", finish, {END: END})
+app = builder.compile(checkpointer=InMemorySaver())
+config = {"configurable": {"thread_id": "lesson-1"}}
+paused = app.invoke({}, config)
+assert paused["__interrupt__"][0].value["critiques"] == 1
+# Later, resume this same thread; pass False to demonstrate the rejected branch.
+result = app.invoke(Command(resume=False), config)
+assert result["result"] == "rejected"</code></pre>
+    <p class="note">Run with <code>pip install langgraph</code>. In-memory checkpoints die with the process; production needs a durable checkpointer. On resume, LangGraph reruns the node containing <code>interrupt</code> from its start, so put no side effects before that call. The pause shows in <code>result["__interrupt__"]</code>; resume with <code>Command(resume=...)</code> on the same <code>thread_id</code>. See the <a href="https://docs.langchain.com/oss/python/langgraph/interrupts" rel="noreferrer">official interrupt guide</a>.</p>
+    <ul>
+      <li><b>Shapes to notice:</b> the critique loop lives in the conditional edge <code>route</code>, not a while. <code>interrupt()</code> in <code>review</code> parks the run on a checkpoint until the second <code>invoke</code> on the same <code>thread_id</code>. Durable resume paths: <a class="xl" href="ops.html">ops</a>.</li>
+      <li><b>In the wild:</b> <b>Cursor's agent</b> checkpoints and rewinds: a durable state machine with time-travel as UI. <b>Insurance claims</b> pause for adjuster approval and resume with the verdict injected, no re-run, no lost research.</li>
+    </ul>
+  </div>
+
+  <div class="beat pitfalls">
+    <h2 class="beat-h" id="pitfalls-mega-nodes-races-bloat"><span class="bt">Pitfalls</span><span class="bh">mega-nodes, races, bloat</span></h2>
+    <ul>
+      <li><b>Mega-node:</b> the whole workflow in one node: no checkpoint boundaries, no resume granularity, nothing to test. A node is one clear effect.</li>
+      <li><b>Missing reducers:</b> parallel branches race on one key; last writer wins by accident.</li>
+      <li><b>Checkpoint bloat:</b> inline documents and raw outputs re-serialize with every snapshot. References, not blobs.</li>
+      <li><b>Version drift:</b> v1 checkpoints under v2 code corrupt state. Drain before deploying graph changes.</li>
+      <li><b>Graph religion:</b> a linear flow wrapped in a graph buys ceremony, not durability. Use plain code, see the picker above.</li>
+      <li><b>Invisible edge logic:</b> conditionals named route2 and decide_x, choices unlogged. Name edges after intent and log the chosen branch every tick (<a class="xl" href="../08-evals/evals.html">evals</a>).</li>
+    </ul>
+  </div>
+
+  <div class="beat checklist">
+    <h2 class="beat-h" id="checklist-seven-bullets-to-remember"><span class="bt">Checklist</span><span class="bh">seven bullets to remember</span></h2>
+    <ul>
+      <li>Make control flow explicit: nodes are functions, state in, state out</li>
+      <li>Conditional edges carry the model's decisions, log every chosen branch</li>
+      <li>Reducers on every key that parallel branches write</li>
+      <li>Checkpoint per tick keyed by thread_id, artifacts stored by reference</li>
+      <li>Humans are interrupts before effects, approval is a resume with (possibly edited) state</li>
+      <li>Plain code for linear flows, graphs for loops, branching and resume</li>
+      <li>Retries, DLQ, budgets and gate SLAs live in <a class="xl" href="ops.html">ops</a>, not in the graph definition</li>
+    </ul>
+  </div>
+  
+    <section class="references" aria-labelledby="primary-sources"><h2 id="primary-sources">Primary sources</h2><ul><li><a href="https://docs.langchain.com/oss/python/langgraph/persistence" rel="noreferrer">LangGraph persistence concepts</a></li><li><a href="https://docs.temporal.io/workflow-execution" rel="noreferrer">Temporal durable execution concepts</a></li></ul></section>
+
+    <section class="lab-check" aria-labelledby="try-verify-explain"><h2 id="try-verify-explain">Try, verify, explain</h2><ol><li>Model a workflow with retrieve, draft, human approval and publish nodes. Show what state is checkpointed and what must be revalidated after resuming.</li><li>Run <code>approval_graph.py</code>, then list <code>app.get_state_history(config)</code> and count the checkpoints written before and after the resume. Add a <code>print()</code> as the first line of <code>review</code> and confirm it fires twice: once before the pause, once on resume.</li><li>Explain what the engine does at a superstep boundary when two parallel branches return updates for the same key, with and without a reducer, and why checkpoints are taken there rather than mid-node.</li></ol></section>
+
+    <nav class="pager" id="pager"></nav>
+
+    <footer class="footer">
+      learning-project · tracks/ai · press ⌘K or / to search every chapter · diagrams load Mermaid from a CDN when online
+    </footer>
+  </div>
+</main>
+
+<script src="../../js/app.js"></script>
+</body>
+</html>

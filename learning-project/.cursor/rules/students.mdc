@@ -1,0 +1,55 @@
+---
+description: Layout of students/ and the writing style for exercises and tasks
+globs: students/**
+alwaysApply: false
+---
+
+# Students bucket
+
+Per-student exercise sheets only. Shared lessons live on the learning path (`hub/path.mjs`): link to them, do not copy them here.
+
+## Layout (fixed)
+
+```text
+students/<student>/README.md                          the student's room: list of subjects
+students/<student>/tasks.html                         generated task browser (subjects → exercises → tasks, collapsible); do not edit by hand
+  <subject>/README.md                                 the subject: list of folders
+    exercises/README.md                               table of exercises
+      exercise-<NN>-<slug>/README.md                  story, every new idea explained, tasks table with status, words to know
+        task-<NN>-<k>-<slug>/README.md                the task from the sheet, simply said, test examples, helpers, done when
+          tests.json                                  the task's tests: what is typed → what must be printed (run: make test-task TASK=NN_k)
+          my-solution/                                the student's desk: README only (which file to create, how to run it). No code
+          solution/                                   README (walkthrough, real test output, common mistakes) + sample solution
+```
+
+- Task ids are written `04_1`, folders `task-04-1-<slug>`. Status lives in the exercise README table: `todo` → `in progress` → `done`.
+- Create exercises and tasks only with `/new-exercise` or `make new-exercise` (`students/scripts/new-exercise.mjs`) so every index page and the landing page stay in sync.
+- Templates: `students/_template/`. Change the template, not every task, when the format changes.
+- `my-solution/` holds no code at all: the student starts alone, from an empty file. Only its `README.md` (file and class name to create, run commands, a place for written answers). `solution/` is the only place for code.
+- Every folder has a `README.md`.
+
+## Writing style
+
+- English only: text, folder names, code identifiers, comments and program output.
+- Explain like for a 6-year-old: short sentences, one idea per paragraph, real-life picture first, code second.
+- A sheet in another language is translated into English faithfully: same meaning, every number and value unchanged. "Words to know" explains the English terms; list a term from the paper sheet next to its English meaning only when it really helps the student match the paper (prefer English only).
+- Solutions use only what the exercise teaches. No clever tricks a beginner has not seen.
+- **Programming solutions:** code in `solution/` only; `README.md` has run commands, a short *why* walkthrough, and real test output.
+- **Written solutions** (Mathematical Foundations, Informatik, any non-code task): `solution/README.md` must **teach how you got there**. Tiny numbered steps (one idea each), intermediate values, a short *why* after important steps, then a clear final answer. Never only dump the finished table/formula. When several rules/recipes exist: show the **menu**, say **which** you pick at this step, and **why that one** (not the others). Full shape: `/new-exercise` → “Programming vs written solutions”.
+
+## Tests (`tests.json`)
+
+Every task has a `tests.json` next to its `README.md`. `students/scripts/test-task.mjs` runs it on `my-solution/` (`make test-task TASK=04_2`, one part: `PART=a`) and on `solution/` (`SOLUTION=1`). When the same task id exists for several students or subjects, add `STUDENT=<name>` and `SUBJECT=<subject>` (the runner says so). The file format is at the top of that script.
+
+- **Black box only:** what is typed in → what is printed. Never test class, file, method or variable names, and never the prompt texts ("Side a in cm: "). The student picks their own names.
+- **Start with the task's own test examples** (the same values), then the borders the task cares about: 0, negative, exactly on the border, one less and one more, full and empty, first and last.
+- **Few and clear:** one idea per test, no two tests for the same idea. 4–10 tests per task, never more than 12.
+- **`name`** says the idea in plain words: `50 folders: the 1 % discount starts here`.
+- **`expect`** holds the smallest pieces that prove the idea, with the labels and values from the task's test table (`"right-angled: true"`). **`reject`** catches the wrong answer a typical mistake prints. **`lines`** checks a few lines exactly, tabs and spaces included (a grid inside a longer output). **`exact`** only when the whole output's exact look is the task (a star picture, tidied output).
+- **`part`**: the sheet's part letter (`a`, `b`, `c`), or the step number for a task that grows step by step, so a student can test each part as soon as it is written.
+- Every test passes on `solution/` (`make test-task TASK=NN_k SOLUTION=1`) before it is committed. Never change a test to make a student's code pass; fix a test only when it disagrees with the task text.
+- Programs that print nothing testable (a written answer, a table of error messages) get no test for that part.
+
+## Helping a student
+
+Students use `/next` → `/stuck` → `/test` → `/check` → `/done`. How to find their task, what you may read and the "never give the solution" rules are in [`tutor.mdc`](./tutor.mdc).

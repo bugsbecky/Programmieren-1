@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ML just enough · multimodal, vision, OCR · AI Engineering Field Guide</title>
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/flow.css">
+</head>
+<body>
+
+<div id="progress"></div>
+
+<header class="topbar">
+  <button class="tbtn" id="nav-toggle" type="button" aria-label="Open contents" aria-controls="toc" aria-expanded="false">☰</button>
+  <a class="brand" href="../../index.html"><b>ai</b>·field-guide</a>
+  <a class="hub-link" href="../../../../hub/index.html">Learning hub</a>
+  <div class="tools">
+    <button class="tbtn search-btn" id="search-open" type="button" aria-label="Search the guide"><span>Search</span><kbd>⌘K</kbd></button>
+    <button class="tbtn" id="expand-all" type="button">expand</button>
+  </div>
+</header>
+
+<nav class="sidebar" id="toc" aria-label="Topics"></nav>
+
+<main class="main">
+  <div class="content">
+    <header class="topic-head">
+      <div class="kicker">Part 1 · Model foundations · 04/31</div>
+      <h1>ML just enough · multimodal, vision, OCR</h1>
+      <p class="lead">You will not train models in this job. You still need the few words that make model cards and eval tables readable, plus a plan for the half of real-world data that arrives as images and audio.</p>
+      <p class="chapter-summary"><b>In this chapter</b> Use loss, generalization and representation as a compact ML foundation; compare text, image and multimodal input paths.</p>
+    </header>
+
+<h3 id="ml-multimodal--ml-just-enough-for-ai-engineering">ML just enough for AI engineering</h3>
+
+<h2 class="stage-label sl-why" id="why-you-need-it">Why this layer matters</h2>
+<div class="why">
+  <ul>
+    <li><b>Locked docs:</b> model cards say "validation loss", "overfits on small sets", "new embedding space". Without the vocabulary you cannot tell a real claim from marketing.</li>
+    <li><b>Locked evals:</b> benchmark tables are loss curves, splits and contamination caveats. Misreading them costs weeks of wrong tool choices.</li>
+    <li><b>One loop:</b> training is guess, score, adjust, repeat. Four ideas explain almost every sentence written about a model.</li>
+  </ul>
+</div>
+
+<h2 class="stage-label sl-sol" id="solutions">Conceptual model</h2>
+<p class="lead">One card per idea.</p>
+<div class="sol-list">
+
+  <div class="sol-item open">
+    <button class="sol-head" type="button">
+      <span class="sol-no">A</span>
+      <span class="sol-name">Loss + gradient descent</span>
+      <span class="sol-sum">wrongness as one number, then the downhill walk that lowers it</span>
+      <span class="sol-chev">▶</span>
+    </button>
+    <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+      <h4>How it works</h4>
+      <ul>
+        <li><b>Loss:</b> one number for how wrong the model is on a batch. Every training decision aims to lower it.</li>
+        <li><b>Gradient descent:</b> the adjust step. For each weight, compute which direction lowers the loss and nudge it a tiny step that way.</li>
+        <li><b>Downhill in fog:</b> the loss surface is the mountain, the gradient the slope under your feet. You cannot see the valley, so you follow the slope.</li>
+        <li><b>Learning rate:</b> the step size. Too big overshoots and bounces; too small takes forever.</li>
+      </ul>
+      <h4>Trade-offs</h4>
+      <ul>
+        <li><b>pro:</b> one picture decodes loss curves, step counts and learning-rate talk in any model card</li>
+        <li><b>con:</b> the real surface has millions of dimensions; the mountain is a metaphor</li>
+      </ul>
+    </div></div></div>
+  </div>
+
+  <div class="sol-item">
+    <button class="sol-head" type="button">
+      <span class="sol-no">B</span>
+      <span class="sol-name">Overfitting vs generalization</span>
+      <span class="sol-sum">the only score that matters after deployment, and the memorization trap</span>
+      <span class="sol-chev">▶</span>
+    </button>
+    <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+      <h4>How it works</h4>
+      <ul>
+        <li><b>Generalization:</b> performing well on data the model never saw, the only score that matters after deployment.</li>
+        <li><b>Overfitting:</b> memorizing training-set quirks instead of the pattern. Perfect on train, wrong on new inputs.</li>
+        <li><b>Why splits exist:</b> you hold out a <button class="term" type="button" data-tip="held-out data the model never trains on, used to detect memorization">validation</button> slice to catch this. Validation loss rising while training loss falls is the alarm bell.</li>
+        <li><b>Eval thinking:</b> every benchmark claim is a generalization claim. LLMs have read much of the internet, so contamination is common and scores overstate reality. The mindset carries into <a class="xl" href="../08-evals/evals.html">evals</a>.</li>
+      </ul>
+      <h4>Trade-offs</h4>
+      <ul>
+        <li><b>pro:</b> one alarm bell, train and validation losses diverging, catches memorization early</li>
+        <li><b>con:</b> clean splits are hard to guarantee once training data is web-scale</li>
+      </ul>
+    </div></div></div>
+  </div>
+
+  <div class="sol-item">
+    <button class="sol-head" type="button">
+      <span class="sol-no">C</span>
+      <span class="sol-name">Embedding space geometry</span>
+      <span class="sol-sum">meaning becomes points, distance is relatedness, direction is relation</span>
+      <span class="sol-chev">▶</span>
+    </button>
+    <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+      <h4>How it works</h4>
+      <ul>
+        <li><b>Meaning as geometry:</b> an <button class="term" type="button" data-tip="mapping text or images to a point in a high-dimensional vector space">embedding</button> maps text or an image to one point in a space of hundreds or thousands of dimensions.</li>
+        <li><b>Distance is relatedness:</b> nearby points mean similar things: "invoice total" sits near "amount due", far from "golden retriever". Cosine similarity is the usual ruler.</li>
+        <li><b>Direction is relation:</b> the offset from "France" to "Paris" roughly equals "Japan" to "Tokyo". Relationships live in directions, not just positions.</li>
+        <li><b>Why you care:</b> the machinery under semantic search, clustering and RAG, covered fully in <a class="xl" href="../03-rag-search/embeddings.html">embeddings</a>.</li>
+      </ul>
+      <h4>Trade-offs</h4>
+      <ul>
+        <li><b>pro:</b> similarity becomes math you can index, cluster and search at scale</li>
+        <li><b>con:</b> geometry is only as good as its training; lookalike nonsense can sit near the truth</li>
+      </ul>
+    </div></div></div>
+  </div>
+
+  <div class="sol-item">
+    <button class="sol-head" type="button">
+      <span class="sol-no">D</span>
+      <span class="sol-name">Scaling intuition</span>
+      <span class="sol-sum">loss falls smoothly with compute, then flattens, know what money buys</span>
+      <span class="sol-chev">▶</span>
+    </button>
+    <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+      <h4>How it works</h4>
+      <ul>
+        <li><b>Scaling laws:</b> with more parameters, data and compute, loss falls smoothly and predictably for a long run.</li>
+        <li><b>Diminishing returns:</b> each doubling of compute buys a smaller step down; power-law curves quietly flatten in payoff.</li>
+        <li><b>Practical read:</b> frontier capability is bought with pretraining-scale compute. A 500-example fine-tune mostly shifts style and format, not reliable world knowledge.</li>
+        <li><b>Data quality beats volume:</b> past a point, cleaner, better-labeled data beats more of it.</li>
+      </ul>
+      <h4>Trade-offs</h4>
+      <ul>
+        <li><b>pro:</b> tells you what a fine-tune can and cannot buy before you pay for one</li>
+        <li><b>con:</b> the flattening is quiet; doubling spend late in the curve buys little</li>
+      </ul>
+    </div></div></div>
+  </div>
+
+</div>
+
+<h2 class="stage-label sl-when" id="when-to-use-when-not">Decision boundary</h2>
+<div class="pc">
+  <div class="pc-col pros"><h4 class="pc-h">Use when</h4>
+    <ul>
+      <li>A model card or benchmark table is the input to a real model or tool decision</li>
+      <li>A vendor benchmark needs interrogation: what was held out, and did it leak into training</li>
+      <li>Someone proposes a fine-tune and you must judge what it can shift, see <a class="xl" href="finetune-decide.html">fine-tuning vs RAG vs prompting</a></li>
+    </ul>
+  </div>
+  <div class="pc-col cons"><h4 class="pc-h">Skip when</h4>
+    <ul>
+      <li>The work is prompt and API plumbing on a fixed, already-chosen model</li>
+      <li>A throwaway demo is the goal and nobody is citing eval numbers</li>
+      <li>The model is fixed by platform or policy and no benchmark claim will move the choice</li>
+    </ul>
+  </div>
+</div>
+
+<h2 class="stage-label sl-ex" id="example">Worked example</h2>
+<div class="example">
+  <p class="ex-note">The whole training loop in four lines: loss is the score, gradient the slope, learning rate the step. You will see this shape in countless tools and logs.</p>
+  <pre class="code" data-lang="python" data-file="train_loop.py"><code><span class="tk-c"># guess, score, adjust, repeat</span>
+<span class="tk-k">for</span> step <span class="tk-k">in</span> <span class="tk-f">range</span>(steps):
+    loss = score(model(batch), targets)    <span class="tk-c"># how wrong, one number</span>
+    grads = gradient(loss, model.weights)  <span class="tk-c"># slope under each weight</span>
+    model.weights -= lr * grads            <span class="tk-c"># small step downhill</span>
+</code></pre>
+</div>
+
+<h3 id="ml-multimodal--multimodal-vision-ocr">Multimodal, vision, OCR</h3>
+
+<h2 class="stage-label sl-why" id="why-you-need-it-2">Why this layer matters</h2>
+<div class="why">
+  <ul>
+    <li><b>Half the data is not text:</b> invoices, receipts, screenshots, scans, table-heavy contracts, voice notes. A text-only pipeline ignores all of it.</li>
+    <li><b>Naive fix fails:</b> classic OCR on everything loses layout, handwriting and charts, often exactly the information you needed.</li>
+    <li><b>Native multimodality:</b> frontier LLMs read images natively, so a separate vision microservice is often unnecessary plumbing in 2026 stacks.</li>
+  </ul>
+</div>
+
+<h2 class="stage-label sl-sol" id="solutions-2">Conceptual model</h2>
+<p class="lead">Three readers for pixels: pick per input type, not per fashion.</p>
+<div class="sol-list">
+
+  <div class="sol-item open">
+    <button class="sol-head" type="button">
+      <span class="sol-no">A</span>
+      <span class="sol-name">Classic OCR pipeline</span>
+      <span class="sol-sum">exact characters plus bounding boxes, cheapest at scale</span>
+      <span class="sol-chev">▶</span>
+    </button>
+    <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+      <h4>How it works</h4>
+      <ul>
+        <li>Detects glyphs, returns characters plus bounding boxes. Deterministic, cheap, scales to millions of pages.</li>
+        <li><b>Tools:</b> Tesseract for open source, or managed AWS Textract, Google Document AI, Azure Read.</li>
+        <li><b>Preprocessing decides quality:</b> deskew and denoise first, or confidence tanks.</li>
+        <li><b>Per-word confidence</b> gives an audit trail and a fallback trigger.</li>
+      </ul>
+      <h4>Trade-offs</h4>
+      <ul>
+        <li><b>pro:</b> deterministic, auditable, cheapest per page, exact on IDs and amounts</li>
+        <li><b>con:</b> loses meaning, tables, handwriting, and intent</li>
+      </ul>
+    </div></div></div>
+  </div>
+
+  <div class="sol-item">
+    <button class="sol-head" type="button">
+      <span class="sol-no">B</span>
+      <span class="sol-name">Vision language model</span>
+      <span class="sol-sum">reads and reasons about the whole page in one chat call</span>
+      <span class="sol-chev">▶</span>
+    </button>
+    <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+      <h4>How it works</h4>
+      <ul>
+        <li>Image plus text prompt in, text out: the usual chat API with one extra image content part.</li>
+        <li>Handles messy layouts, charts, rotation, handwriting, crossed-out form fields, screenshots.</li>
+        <li><b>Resolution:</b> large images get downscaled or <button class="term" type="button" data-tip="splitting a large image into smaller crops before encoding">tiled</button> into crops. Small text can land between tiles or vanish in downscaling.</li>
+        <li><b>Billing:</b> image tokens, often hundreds to a few thousand per image depending on resolution.</li>
+      </ul>
+      <h4>Trade-offs</h4>
+      <ul>
+        <li><b>pro:</b> judgment, layout understanding and contextual extraction in one call</li>
+        <li><b>con:</b> nondeterministic, can invent text, cost scales with resolution</li>
+      </ul>
+    </div></div></div>
+  </div>
+
+  <div class="sol-item">
+    <button class="sol-head" type="button">
+      <span class="sol-no">C</span>
+      <span class="sol-name">Hybrid OCR + VLM <span class="sol-tag best">production</span></span>
+      <span class="sol-sum">OCR owns the words, VLM owns the structure, joined by geometry</span>
+      <span class="sol-chev">▶</span>
+    </button>
+    <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+      <h4>How it works</h4>
+      <ul>
+        <li><b>Split roles:</b> OCR returns line items and totals exactly, the VLM recovers table structure, a cheap text-only LLM maps the merged text onto your schema.</li>
+        <li><b>Join by coordinates:</b> place OCR words into the cells the VLM located; never let the VLM transcribe critical numbers.</li>
+        <li>Keep a VLM fallback path for pages where OCR confidence drops.</li>
+      </ul>
+      <h4>Trade-offs</h4>
+      <ul>
+        <li><b>pro:</b> exactness plus structure plus an audit trail of source boxes</li>
+        <li><b>con:</b> two systems to maintain, coordinate joining is fiddly</li>
+      </ul>
+    </div></div></div>
+  </div>
+
+</div>
+
+<p class="note"><b>Audio</b> rides the same rail: STT (Whisper or managed APIs) turns speech into text for a normal text pipeline, and TTS voices the answer. Voice earns its keep when hands are busy, speaking beats typing, or accessibility requires it; otherwise text is cheaper, faster and easier to log.</p>
+
+<h2 class="stage-label sl-when" id="when-to-use-when-not-2">Decision boundary</h2>
+<div class="pc">
+  <div class="pc-col pros"><h4 class="pc-h">Use when</h4>
+    <ul>
+      <li><b>OCR:</b> millions of pages, clean or born-digital scans, exact characters matter (IDs, amounts), tight unit cost</li>
+      <li><b>VLM:</b> messy layouts, charts, screenshots, handwriting, low page counts, judgment or extraction with context</li>
+      <li><b>Hybrid:</b> production document extraction needing exactness and structure, plus an audit trail of source boxes</li>
+    </ul>
+  </div>
+  <div class="pc-col cons"><h4 class="pc-h">Skip when</h4>
+    <ul>
+      <li><b>OCR:</b> handwriting, tables whose structure you need, any call requiring meaning or judgment</li>
+      <li><b>VLM:</b> very high volume on a tight budget, or exactness with no verification step</li>
+      <li><b>Hybrid:</b> a prototype where one VLM call is accurate enough, or sources that are already text</li>
+    </ul>
+  </div>
+</div>
+
+<h2 class="stage-label sl-ex" id="example-2">Worked example</h2>
+<div class="example">
+  <p class="ex-note">Two real shapes: one VLM call for receipts and screenshots, and the hybrid pattern when exactness and structure both matter.</p>
+  <ul>
+    <li><b>Screenshot to code:</b> pure VLM territory; the information is pixels and layout that no text-first stage can see.</li>
+    <li><b>Document QA with figures:</b> RAG over OCR text answers most questions; figure questions route to a VLM with the page image attached. Routing is introduced in <a class="xl" href="../03-rag-search/rag-overview.html">RAG big picture</a>.</li>
+  </ul>
+  <pre class="code" data-lang="python" data-file="vlm_receipt.py"><code><span class="tk-k">from</span> openai <span class="tk-k">import</span> OpenAI
+
+client = OpenAI()
+
+<span class="tk-c"># image + instruction in, structured JSON out, one call</span>
+resp = client.chat.completions.create(
+    model=<span class="tk-s">"gpt-4o-mini"</span>,
+    messages=[{
+        <span class="tk-s">"role"</span>: <span class="tk-s">"user"</span>,
+        <span class="tk-s">"content"</span>: [
+            {<span class="tk-s">"type"</span>: <span class="tk-s">"text"</span>,
+             <span class="tk-s">"text"</span>: <span class="tk-s">"Extract vendor, date, total. JSON only."</span>},
+            {<span class="tk-s">"type"</span>: <span class="tk-s">"image_url"</span>,
+             <span class="tk-s">"image_url"</span>: {<span class="tk-s">"url"</span>: <span class="tk-s">"data:image/png;base64,"</span> + img_b64}},
+        ],
+    }],
+    response_format={<span class="tk-s">"type"</span>: <span class="tk-s">"json_object"</span>},
+)
+<span class="tk-f">print</span>(resp.choices[<span class="tk-n">0</span>].message.content)
+</code></pre>
+
+  <figure class="diagram"><div class="diag-body"><pre class="mermaid">flowchart LR
+  IMG["Page image"] --> OCR["Classic OCR"]
+  IMG --> VLM["Vision model"]
+  OCR -->|"text + boxes"| J["Geometry join"]
+  VLM -->|"cell boxes"| J
+  J --> L["Map to schema"]
+</pre></div><figcaption>The two readers never overlap: OCR supplies every character, the VLM only cell positions, so no critical number passes through VLM transcription before the geometry join.</figcaption></figure>
+
+  <pre class="code" data-lang="python" data-file="hybrid_extract.py"><code><span class="tk-c"># hybrid pattern: OCR owns the words, VLM owns the structure</span>
+words = ocr(image)           <span class="tk-c"># Tesseract or managed OCR, text + boxes</span>
+layout = vlm(image, <span class="tk-s">"Return table cell boxes as JSON. Do not read the text."</span>)
+cells = snap(words, layout)  <span class="tk-c"># place words into cells by coordinates</span>
+facts = llm_to_schema(cells) <span class="tk-c"># cheap text-only extraction from here on</span>
+
+<span class="tk-k">if</span> ocr_confidence(words) &lt; <span class="tk-n">0.9</span>:
+    facts = vlm(image, schema) <span class="tk-c"># fallback: let the VLM read directly</span>
+</code></pre>
+</div>
+
+<h2 class="stage-label sl-extra" id="watch-out">Failure modes</h2>
+<div class="pit-list">
+  <ul>
+    <li><b>Image token cost:</b> often hundreds to a few thousand tokens per image. A vision-heavy agent loop multiplies this fast; budget it like any spend in <a class="xl" href="../02-tokens-context/tokens-cost.html">tokens and cost</a>.</li>
+    <li><b>Resolution and tiling:</b> small text can fall between tiles or vanish in downscaling, and tiles can cut a table apart. Test your worst scan, not your best.</li>
+    <li><b>Hallucinated text:</b> a VLM can read characters that are not there, filling in plausible amounts and IDs. Verify critical fields against OCR boxes, checksums or totals math.</li>
+    <li><b>PII in images:</b> faces, signatures, license plates and account numbers ship straight to a vendor API. Redact first, or self-host the reader for sensitive flows.</li>
+    <li><b>Injected instructions:</b> text inside an image is model input; a scanned form reading "ignore previous instructions" is a real attack surface, see <a class="xl" href="../07-security/injection.html">prompt injection</a>.</li>
+    <li><b>Silent degradation:</b> OCR quality drifts with scan quality and upstream changes. Track confidence distributions over time, not one golden test.</li>
+  </ul>
+</div>
+
+<h2 class="stage-label sl-extra" id="remember">Keep in mind</h2>
+<div class="remember">
+  <ul>
+    <li>Loss is wrongness, gradient descent is the downhill walk, learning rate is the step size.</li>
+    <li>Generalization is the only real score. Validation splits exist to catch memorization.</li>
+    <li>Embeddings turn meaning into geometry: distance is relatedness, direction is relation.</li>
+    <li>Scaling smooths out then flattens. A 500-example fine-tune mostly changes style, not knowledge.</li>
+    <li>Exact text at scale: OCR. Meaning and layout: VLM. Production extraction: hybrid, joined by geometry.</li>
+    <li>Images are billed as tokens and can hallucinate. Verify amounts, redact PII, expect injection in pixels.</li>
+  </ul>
+</div>
+
+    <section class="references" aria-labelledby="primary-sources"><h2 id="primary-sources">Primary sources</h2><ul><li><a href="https://www.deeplearningbook.org/" rel="noreferrer">Deep Learning (Goodfellow et al.), optimization and generalization</a></li><li><a href="https://arxiv.org/abs/2103.00020" rel="noreferrer">CLIP: Connecting Text and Images</a></li></ul></section>
+
+    <section class="lab-check" aria-labelledby="try-verify-explain"><h2 id="try-verify-explain">Try, verify, explain</h2><ol><li>Take one scanned invoice and compare the image-to-text routes: OCR output, a vision model input, and the validation each route still needs.</li><li>Send the same receipt to a vision model at full resolution and downscaled to 512 px wide; record the reported input tokens and whether vendor, date and total still extract correctly.</li><li>Explain why validation loss rising while training loss falls signals memorization, and why web-scale contamination can hide that gap inside a benchmark score.</li></ol></section>
+
+    <nav class="pager" id="pager"></nav>
+
+    <footer class="footer">
+      learning-project · tracks/ai · press ⌘K or / to search every chapter · diagrams load Mermaid from a CDN when online
+    </footer>
+  </div>
+</main>
+
+<script src="../../js/app.js"></script>
+</body>
+</html>

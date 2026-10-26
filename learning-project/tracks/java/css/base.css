@@ -1,0 +1,21 @@
+* { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--fg);
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  font-weight: 400;
+  line-height: 1.6;
+}
+.display { font-family: var(--font); }
+.mono { font-family: var(--mono); }
+
+/* Keep the bottom step bar (.lp-bar) free: leave room under the last section */
+main { padding-bottom: 64px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

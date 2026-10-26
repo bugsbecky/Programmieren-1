@@ -1,0 +1,18 @@
+# Secrets (Open-Meteo needs no keys; keep for habit)
+.env
+.env.local
+
+# OS
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+# Optional: if you add npm later
+node_modules/
+

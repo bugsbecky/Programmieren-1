@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Java Learning Hub</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body class="lp-hl">
+
+  <header class="site-header">
+    <div class="container">
+      <nav>
+        <div class="logo">
+          <div class="logo-mark">J</div>
+          <span>Java · Learning Hub</span>
+        </div>
+        <div class="header-meta">
+          <span><span class="dot creational"></span>Ubuntu</span>
+          <span><span class="dot structural"></span>Terminal practice</span>
+          <span><span class="dot behavioral"></span>Java 21</span>
+        </div></nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hub-hero">
+      <div class="container">
+        <div class="hero-badge">Ubuntu Linux · Java 21 LTS · beginner to advanced</div>
+        <h1>Java on Ubuntu —<br><span class="accent">from first command to real projects.</span></h1>
+        <p>One topic per page, from your first program to objects, collections, files, tests and design patterns. Every page starts with a picture, shows one tiny example, and ends with a "Try it" and a "Check yourself". You run the code in your own terminal.</p>
+        <div class="hero-stats" id="hubStats"></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <div class="num-tag">01 / START HERE</div>
+            <h2>Ordered Curriculum Path</h2>
+          </div>
+          <p><span id="pathCount">22 ordered topics</span>, from the first program to design patterns. Projects live in the <a href="../../projects/README.md">project ladder</a>.</p>
+        </div>
+        <div class="basics-path" id="learningPath"></div>
+      </div>
+    </section>
+
+    <section class="section terminal-section">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <div class="num-tag">02 / PRACTICE REALITY</div>
+            <h2>Browser Lessons, Terminal Runs</h2>
+          </div>
+          <p>Use the page to read examples and diagrams. Use Ubuntu Terminal to install OpenJDK with <code>sudo apt</code>, create files, compile with <code>javac</code>, and run with <code>java</code>.</p>
+        </div>
+        <div class="terminal-practice">
+          <div class="terminal-step">
+            <span>1</span>
+            <strong>Install Java tools</strong>
+            <pre><code>sudo apt update
+sudo apt install openjdk-21-jdk</code></pre>
+          </div>
+          <div class="terminal-step">
+            <span>2</span>
+            <strong>Create a small file</strong>
+            <pre><code>mkdir -p java-practice
+cd java-practice
+nano HelloJava.java</code></pre>
+          </div>
+          <div class="terminal-step">
+            <span>3</span>
+            <strong>Compile it</strong>
+            <pre><code>javac HelloJava.java</code></pre>
+          </div>
+          <div class="terminal-step">
+            <span>4</span>
+            <strong>Run the compiled class</strong>
+            <pre><code>java HelloJava</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <div class="num-tag">03 / TRACK VIEW</div>
+            <h2>Stages &amp; Topics</h2>
+          </div>
+          <p><span id="trackCount">Structured stages</span> for scanning the same path by skill area.</p>
+        </div>
+        <div class="track-grid" id="trackGrid"></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <div>
+            <div class="num-tag">04 / BEGINNER GLOSSARY</div>
+            <h2>Hover Glossary</h2>
+          </div>
+          <p>Keyword, data type, REST, and UML terms with short beginner definitions.</p>
+        </div>
+        <div class="glossary-grid" id="glossaryGrid"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      Built for developers learning Java on Ubuntu · Examples target <strong>Java 21 LTS</strong> · Java runs in the terminal
+    </div>
+  </footer>
+
+  <script src="js/ns.js"></script>
+  <script src="js/topics/registry.js"></script>
+  <script src="js/glossary.js"></script>
+  <script src="js/hub.js"></script>
+</body>
+</html>

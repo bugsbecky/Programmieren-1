@@ -1,0 +1,370 @@
+window.AIP = window.AIP || {};
+
+AIP.quiz = (function () {
+  var session = null;
+
+  function uniqSort(arr) {
+    var seen = {};
+    var out = [];
+    (arr || []).forEach(function (x) {
+      var k = String(x == null ? "" : x).trim().toUpperCase();
+      if (!k || seen[k]) return;
+      seen[k] = true;
+      out.push(k);
+    });
+    out.sort();
+    return out;
+  }
+
+  function correctLetters(q) {
+    if (!q) return [];
+    var c = q.correct;
+    if (c == null) return [];
+    if (Array.isArray(c)) return uniqSort(c);
+    return uniqSort(String(c).split(/[\s,;]+/));
+  }
+
+  function isMulti(q) {
+    return correctLetters(q).length > 1 || !!q.multi;
+  }
+
+  function choiceLetter(c) {
+    if (!c) return "";
+    return String(c.id || c.letter || "").trim().toUpperCase();
+  }
+
+  function questionsFor(filter) {
+    if (typeof filter === "object" && filter !== null) {
+      return AIP.filterQuestions ? AIP.filterQuestions(filter) : (AIP.questions || []).slice();
+    }
+    if (filter === "all") {
+      return AIP.sortQuestions ? AIP.sortQuestions(AIP.questions || []) : (AIP.questions || []).slice();
+    }
+    var id = AIP.padChapterId(filter);
+    var bank = AIP.questions || [];
+    var items = bank.filter(function (q) {
+      return AIP.chapterTags(q).indexOf(id) !== -1;
+    });
+    return AIP.sortQuestions ? AIP.sortQuestions(items) : items;
+  }
+
+  function sessionKey(filter, options) {
+    options = options || {};
+    if (typeof filter === "object" && filter !== null) {
+      return JSON.stringify(filter);
+    }
+    if (filter === "all") {
+      return "all:" + JSON.stringify(options.examMode || {});
+    }
+    return String(filter);
+  }
+
+  function itemIds(items) {
+    return (items || []).map(function (q) { return q && q.id; }).filter(function (id) {
+      return id != null && id !== "";
+    });
+  }
+
+  function newRunId() {
+    return "run-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function persistExam() {
+    if (!session || !session.runId) return;
+    AIP.storage.saveExamRun({
+      version: 2,
+      id: session.runId,
+      filter: "all",
+      filterKey: session.filterKey,
+      examMode: session.examMode || {},
+      itemIds: itemIds(session.items),
+      index: session.index,
+      revealed: !!session.revealed,
+      selected: session.selected || {},
+      results: session.results || [],
+      skipped: session.skipped || {},
+      startedAt: session.startedAt || Date.now(),
+      createdAt: session.createdAt || session.startedAt || Date.now(),
+      updatedAt: Date.now()
+    });
+  }
+
+  function restoreExam(runId) {
+    var saved = runId ? AIP.storage.examRun(runId) : (AIP.storage.examRuns()[0] || null);
+    if (!saved) return null;
+    var byId = {};
+    (AIP.questions || []).forEach(function (q) { byId[q.id] = q; });
+    var items = saved.itemIds.map(function (id) { return byId[id]; }).filter(Boolean);
+    if (!items.length) {
+      AIP.storage.removeExamRun(saved.id);
+      return null;
+    }
+    session = {
+      filter: "all",
+      runId: saved.id,
+      filterKey: saved.filterKey || "saved-exam",
+      examMode: saved.examMode || {},
+      items: items,
+      index: Math.max(0, Math.min(Number(saved.index) || 0, items.length - 1)),
+      revealed: !!saved.revealed,
+      selected: saved.selected && typeof saved.selected === "object" ? saved.selected : {},
+      results: Array.isArray(saved.results) ? saved.results : [],
+      skipped: saved.skipped && typeof saved.skipped === "object" ? saved.skipped : {},
+      startedAt: saved.startedAt || Date.now(),
+      createdAt: saved.createdAt || saved.startedAt || Date.now()
+    };
+    return session;
+  }
+
+  function start(filter, options) {
+    options = options || {};
+    var items;
+    if (filter === "all" && options.examMode && AIP.questionsForExam) {
+      items = AIP.questionsForExam(options.examMode);
+    } else {
+      items = questionsFor(filter);
+    }
+    var startIndex = 0;
+    if (options.startId) {
+      var idx = -1;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i] && items[i].id === options.startId) {
+          idx = i;
+          break;
+        }
+      }
+      if (idx >= 0) startIndex = idx;
+    }
+    session = {
+      filter: filter === "all" ? "all" : (typeof filter === "object" ? filter : AIP.padChapterId(filter)),
+      filterKey: sessionKey(filter, options),
+      examMode: options.examMode || null,
+      items: items,
+      index: startIndex,
+      revealed: false,
+      selected: {},
+      results: [],
+      skipped: {},
+      startedAt: Date.now(),
+      createdAt: Date.now(),
+      runId: filter === "all" && options.persistExam !== false ? (options.runId || newRunId()) : null
+    };
+    persistExam();
+    return session;
+  }
+
+  function current() {
+    return session;
+  }
+
+  function currentQuestion() {
+    if (!session || !session.items.length) return null;
+    return session.items[session.index] || null;
+  }
+
+  function toggleChoice(letter) {
+    if (!session || session.revealed) return;
+    var q = currentQuestion();
+    if (!q) return;
+    var key = String(letter || "").trim().toUpperCase();
+    if (!key) return;
+    if (!isMulti(q)) {
+      session.selected = {};
+      session.selected[key] = true;
+      persistExam();
+      return;
+    }
+    if (session.selected[key]) delete session.selected[key];
+    else session.selected[key] = true;
+    persistExam();
+  }
+
+  function selectedList() {
+    if (!session) return [];
+    return uniqSort(Object.keys(session.selected));
+  }
+
+  function sameLetters(got, want) {
+    if (got.length !== want.length) return false;
+    for (var i = 0; i < got.length; i++) {
+      if (got[i] !== want[i]) return false;
+    }
+    return true;
+  }
+
+  function submit() {
+    if (!session || session.revealed) return false;
+    var q = currentQuestion();
+    if (!q) return false;
+    var got = selectedList();
+    if (!got.length) return false;
+    var want = correctLetters(q);
+    var ok = want.length > 0 && sameLetters(got, want);
+    session.revealed = true;
+    session.results[session.index] = ok;
+    if (q.id != null && q.id !== "") AIP.storage.recordAttempt(q.id, ok);
+    persistExam();
+    return ok;
+  }
+
+  function next() {
+    if (!session || !session.revealed) return false;
+    if (session.index < session.items.length - 1) {
+      session.index += 1;
+      session.revealed = false;
+      session.selected = {};
+      persistExam();
+      return true;
+    }
+    return false;
+  }
+
+  function resetAttempt() {
+    if (!session) return;
+    session.index = 0;
+    session.revealed = false;
+    session.selected = {};
+    session.results = [];
+    session.skipped = {};
+    persistExam();
+  }
+
+  function skip() {
+    if (!session || !session.items.length) return false;
+    var q = currentQuestion();
+    if (q && q.id != null) session.skipped[q.id] = (Number(session.skipped[q.id]) || 0) + 1;
+    if (session.index < session.items.length - 1) session.index += 1;
+    else session.index = 0;
+    session.revealed = false;
+    session.selected = {};
+    persistExam();
+    return true;
+  }
+
+  function abandonExam() {
+    if (session && session.runId) AIP.storage.removeExamRun(session.runId);
+    session = null;
+  }
+
+  function examModeLabel(mode) {
+    if (!mode || mode.mode === "all") return "Mock exam";
+    if (mode.mode === "certsafari") return "CertSafari only · sorted by domain";
+    if (mode.mode === "random65") return "Random 65 · exam-style subset";
+    if (mode.domain != null) {
+      var dm = AIP.domainMeta ? AIP.domainMeta(mode.domain) : null;
+      return "Domain " + mode.domain + (dm ? " · " + dm.short : "");
+    }
+    if (mode.source) return String(mode.source);
+    var count = Number(mode.count) || 0;
+    var strategy = mode.strategy === "adaptive" ? "Smart practice" : "Exam mode";
+    var filters = [];
+    if (mode.domain != null) filters.push("Domain " + mode.domain);
+    if (mode.source) filters.push(mode.source);
+    if (mode.status && mode.status !== "all") filters.push(mode.status);
+    return strategy + (count ? " · " + count + " questions" : "") + (filters.length ? " · " + filters.join(" · ") : "");
+  }
+
+  function render() {
+    if (!session) return "<p>No quiz loaded.</p>";
+    if (!session.items.length) {
+      var back = typeof session.filter === "string" && session.filter !== "all"
+        ? '<a class="btn" href="#/chapter/' + AIP.escape(session.filter) + '">Back to chapter</a>'
+        : "";
+      return '<div class="card"><h3>No questions in this set</h3><p>Try the full mock exam or browse the question bank.</p><div class="chapter-actions"><a class="btn" href="#/exam">Full mock exam</a><a class="btn" href="#/bank">Question bank</a>' + back + '</div></div>';
+    }
+    var q = currentQuestion();
+    if (!q) return "<p>No quiz loaded.</p>";
+    var stats = q.id != null ? AIP.storage.questionStats(q.id) : { correct: 0, wrong: 0, attempts: [] };
+    var multi = isMulti(q);
+    var html = "";
+    if (session.filter === "all") {
+      html += '<div class="card" style="margin-bottom:12px;padding:12px 16px"><div style="font-size:13px;color:var(--muted)">' + AIP.escape(examModeLabel(session.examMode)) + '</div>';
+      html += '<div class="chapter-actions" style="margin-top:8px"><a class="btn ghost" href="#/exam">Exam settings</a>';
+      html += '<a class="btn ghost" href="#/bank">Browse bank</a></div></div>';
+    } else if (typeof session.filter === "object") {
+      html += '<div class="card" style="margin-bottom:12px;padding:12px 16px"><div style="font-size:13px;color:var(--muted)">Filtered question list · ' + session.items.length + ' questions</div><div class="chapter-actions" style="margin-top:8px"><a class="btn ghost" href="#/bank">Change filters</a><a class="btn ghost" href="#/exam' + (AIP.filterQuery ? AIP.filterQuery(session.filter) : "") + '">Use for mock setup</a></div></div>';
+    }
+    html += '<div class="quiz-meta"><div>Question ' + (session.index + 1) + " / " + session.items.length + (multi ? " · choose all that apply" : "") + '</div>';
+    html += '<div class="question-history">Lifetime: <span class="answer-count correct">' + stats.correct + ' right</span> · <span class="answer-count wrong">' + stats.wrong + ' wrong</span>' + (!stats.attempts.length ? ' · <span class="answer-count new">new</span>' : '') + '</div></div>';
+    var badges = (q.badges || []).slice();
+    if (!badges.length) {
+      if (q.source === "examtopics") badges.push("EXAMTOPICS");
+      else if (q.source === "certsafari") badges.push("CERTSAFARI");
+      else badges.push("PRACTICE");
+    }
+    if (q.subdomain) html += '<div class="quiz-meta" style="margin-top:8px;color:var(--muted);font-size:13px">' + AIP.escape(q.subdomain) + '</div>';
+    html += '<div class="badge-row" style="margin-top:12px">' + AIP.renderBadges(badges) + '</div>';
+    html += '<div class="card"><p class="quiz-stem">' + AIP.escape(q.stem) + '</p></div>';
+    var wantSet = {};
+    correctLetters(q).forEach(function (L) { wantSet[L] = true; });
+    (q.choices || []).forEach(function (c) {
+      var letter = choiceLetter(c);
+      var cls = "choice";
+      if (session.selected[letter]) cls += " selected";
+      if (session.revealed) {
+        if (wantSet[letter]) cls += " correct";
+        else if (session.selected[letter]) cls += " wrong";
+      }
+      html += '<button type="button" class="' + cls + '" data-choice="' + AIP.escape(letter) + '"><span class="letter">' + AIP.escape(letter) + '</span><span class="choice-text">' + AIP.escape(c.text) + '</span></button>';
+    });
+    if (!session.revealed) {
+      html += '<div class="chapter-actions"><button type="button" class="btn primary" data-quiz="submit">Check answer</button><button type="button" class="btn ghost" data-quiz="skip">Skip for now</button><button type="button" class="btn ghost" data-quiz="reset">Reset this attempt</button></div>';
+    } else {
+      var ok = session.results[session.index];
+      html += '<div class="feedback ' + (ok ? "ok" : "bad") + '"><strong>' + (ok ? "Correct." : "Not quite.") + '</strong> Answer: ' + AIP.escape(correctLetters(q).join(", "));
+      if (multi && !ok) html += '<p style="margin:8px 0 0">Multi-select: every correct letter must be chosen, and no extras.</p>';
+      if (Array.isArray(q.optionExplanations) && q.optionExplanations.length) {
+        html += '<div class="explanation-list" style="margin-top:12px">';
+        q.optionExplanations.forEach(function (ex) {
+          var tag = ex.correct ? "Correct" : (ex.incorrect === false && !ex.correct ? "" : "Incorrect");
+          html += '<div class="explanation-item" style="margin:10px 0;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card)">';
+          html += '<strong>' + AIP.escape(ex.id) + ')</strong>';
+          if (tag) html += ' <span style="color:' + (ex.correct ? "var(--ok)" : "var(--bad)") + '">' + tag + '</span>';
+          if (ex.text) html += '<p style="margin:6px 0 0">' + AIP.escape(ex.text) + '</p>';
+          html += '</div>';
+        });
+        html += '</div>';
+      } else if (q.why) {
+        html += '<p style="margin:8px 0 0">' + AIP.escape(q.why) + '</p>';
+      }
+      html += '</div>';
+      var more = session.index < session.items.length - 1;
+      html += '<div class="chapter-actions">';
+      if (more) html += '<button type="button" class="btn primary" data-quiz="next">Next question</button>';
+      else {
+        html += '<div class="card"><h3>Attempt complete</h3><p>' + session.results.filter(Boolean).length + ' / ' + session.items.length + ' correct this round. Lifetime counts are kept so you can see which items you miss repeatedly.</p></div>';
+      }
+      html += '<button type="button" class="btn" data-quiz="reset">Try this set again</button>';
+      if (more) html += '<button type="button" class="btn ghost" data-quiz="skip">Skip for now</button>';
+      if (!more && typeof session.filter === "string" && session.filter !== "all") {
+        var chapterIndex = (AIP.CHAPTERS || []).findIndex(function (chapter) { return chapter.id === session.filter; });
+        if (chapterIndex >= 0 && chapterIndex < AIP.CHAPTERS.length - 1) {
+          var nextChapter = AIP.CHAPTERS[chapterIndex + 1];
+          html += '<a class="btn primary" href="#/chapter/' + AIP.escape(nextChapter.id) + '">Continue to ' + AIP.escape(nextChapter.id + '. ' + nextChapter.title) + '</a>';
+        }
+      }
+      if (typeof session.filter === "string" && session.filter !== "all") html += '<a class="btn ghost" href="#/chapter/' + AIP.escape(session.filter) + '">Back to chapter</a>';
+      html += '<a class="btn ghost" href="#/bank">Question bank</a><a class="btn ghost" href="#/stats">View stats</a>';
+      if (session.runId) html += '<button type="button" class="btn ghost" data-exam="abandon">Remove this run</button>';
+      html += '</div>';
+    }
+    return '<div class="quiz-page">' + html + "</div>";
+  }
+
+  return {
+    start: start,
+    current: current,
+    toggleChoice: toggleChoice,
+    submit: submit,
+    next: next,
+    resetAttempt: resetAttempt,
+    skip: skip,
+    abandonExam: abandonExam,
+    restoreExam: restoreExam,
+    render: render,
+    renderStats: function () { return AIP.renderQuizStats(); },
+    questionsFor: questionsFor,
+    isMulti: isMulti,
+    sessionKey: sessionKey
+  };
+})();

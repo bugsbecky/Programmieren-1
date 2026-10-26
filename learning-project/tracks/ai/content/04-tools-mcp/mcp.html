@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP · Model Context Protocol · AI Engineering Field Guide</title>
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/flow.css">
+</head>
+<body>
+
+<div id="progress"></div>
+
+<header class="topbar">
+  <button class="tbtn" id="nav-toggle" type="button" aria-label="Open contents" aria-controls="toc" aria-expanded="false">☰</button>
+  <a class="brand" href="../../index.html"><b>ai</b>·field-guide</a>
+  <a class="hub-link" href="../../../../hub/index.html">Learning hub</a>
+  <div class="tools">
+    <button class="tbtn search-btn" id="search-open" type="button" aria-label="Search the guide"><span>Search</span><kbd>⌘K</kbd></button>
+    <button class="tbtn" id="expand-all" type="button">expand</button>
+  </div>
+</header>
+
+<nav class="sidebar" id="toc" aria-label="Topics"></nav>
+
+<main class="main">
+  <div class="content">
+    <header class="topic-head">
+      <div class="kicker">Part 4 · Tools &amp; agents · 17/31</div>
+      <h1>MCP · Model Context Protocol</h1>
+      <p class="lead">MCP is an open protocol that connects AI apps to tools and data. Write the server once, every client gains it, and the tool menu builds itself at runtime from what the server reports.</p>
+      <p class="chapter-summary"><b>In this chapter</b> Trace the host, client and server roles, capability negotiation, transport and authorization boundary in an MCP integration.</p>
+    </header>
+
+    <h2 class="stage-label sl-why" id="why-you-need-it">Why this layer matters</h2>
+    <div class="why">
+      <ul>
+        <li><b>N×M trap:</b> M apps × N tools means M×N bespoke integrations to maintain.</li>
+        <li><b>Plugin sprawl:</b> every app invented its own plugin format.</li>
+        <li><b>Opaque REST:</b> schemas and usage notes live in docs models cannot read.</li>
+        <li><b>Precedent:</b> <button class="term" type="button" data-tip="Language Server Protocol: one language server, every editor. Solved the same matrix for IDEs, over stdio like MCP.">LSP</button> collapsed editors × languages into M+N.</li>
+      </ul>
+    </div>
+
+    <h2 class="stage-label sl-sol" id="solutions">Protocol architecture</h2>
+    <p>Three ways to expose tools to models, cheapest first.</p>
+    <div class="sol-list">
+
+      <div class="sol-item open">
+        <button class="sol-head" type="button">
+          <span class="sol-no">A</span>
+          <span class="sol-name">Native function calling</span>
+          <span class="sol-sum">schemas compiled into one app, no protocol</span>
+          <span class="sol-chev">▶</span>
+        </button>
+        <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+          <h4>How it works</h4>
+          <ul>
+            <li>Declare JSON Schemas with each request, your loop executes calls (<a class="xl" href="tool-calling.html">tool calling</a>).</li>
+            <li>Zero handshake, zero extra hops, lowest latency of the three.</li>
+          </ul>
+          <h4>Trade-offs</h4>
+          <ul>
+            <li><b>pro:</b> fastest path while tools live in one app on one machine.</li>
+            <li><b>con:</b> re-implemented per app, the N×M trap. Menu frozen at build time.</li>
+          </ul>
+        </div></div></div>
+      </div>
+
+      <div class="sol-item">
+        <button class="sol-head" type="button">
+          <span class="sol-no">B</span>
+          <span class="sol-name">MCP local · stdio</span>
+          <span class="sol-sum">subprocess over stdin/stdout, best for local tools</span>
+          <span class="sol-chev">▶</span>
+        </button>
+        <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+          <h4>How it works</h4>
+          <ul>
+            <li>Host spawns the server, <button class="term" type="button" data-tip="A tiny remote-procedure-call standard: methods like tools/call, JSON payloads, structured error codes.">JSON-RPC 2.0</button> flows over stdin/stdout.</li>
+            <li>No network hop, but a launched server is trusted executable code: scope its environment and access. Ideal for files, shell, dev databases.</li>
+            <li><span class="wlabel gotcha">gotcha</span> stdout IS the wire: a stray print() hangs the server. Log to stderr.</li>
+          </ul>
+          <h4>Trade-offs</h4>
+          <ul>
+            <li><b>pro:</b> one server feeds Claude Desktop, Cursor and <a class="xl" href="../05-agents-orchestration/ecosystem.html">goose</a>.</li>
+            <li><b>con:</b> per-process, wrong shape for multi-user SaaS backends.</li>
+          </ul>
+        </div></div></div>
+      </div>
+
+      <div class="sol-item">
+        <button class="sol-head" type="button">
+          <span class="sol-no">C</span>
+          <span class="sol-name">MCP remote · Streamable HTTP</span>
+          <span class="sol-sum">Streamable HTTP transport, authorization where applicable, shared servers</span>
+          <span class="sol-chev">▶</span>
+        </button>
+        <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+          <h4>How it works</h4>
+          <ul>
+            <li>Streamable HTTP carries JSON-RPC over HTTP; streaming and long-running work follow what both sides negotiate. The current core uses self-contained, stateless requests with per-request capability negotiation.</li>
+            <li>Remote authorization follows the MCP authorization specification and its OAuth requirements for the negotiated version; check the current spec rather than assuming one fixed flow.</li>
+          </ul>
+          <h4>Trade-offs</h4>
+          <ul>
+            <li><b>pro:</b> one hosted server shared across teams and machines.</li>
+            <li><b>con:</b> now a web service: rate limits, audit logs, secrets scoping.</li>
+            <li><b>con:</b> envelope overhead, keep hot loops native (<a class="xl" href="../05-agents-orchestration/ops.html">ops</a>).</li>
+          </ul>
+        </div></div></div>
+      </div>
+
+    </div>
+
+    <h2 id="protocol-primitives-and-control">Protocol primitives and control</h2>
+    <ul>
+      <li><b>Tools:</b> callable functions with input schemas. The host/client mediates model-proposed calls and enforces consent and authorization; tool annotations are hints, not enforcement.</li>
+      <li><b>Resources:</b> context addressed by resource identifiers; the host decides what reaches the model or user.</li>
+      <li><b>Prompts:</b> reusable templates a host may surface for the user or the application.</li>
+    </ul>
+    <p class="note">The protocol also covers progress, cancellation and error reporting. Optional client features such as sampling or elicitation exist only when negotiated for the current protocol version.</p>
+
+    <figure class="diagram"><div class="diag-body"><pre class="mermaid">
+sequenceDiagram
+  participant H as Host + client
+  participant M as Model
+  participant S as MCP server
+  H->>S: tools/list request + supported protocol metadata
+  S-->>H: tool names + input schemas
+  H->>M: selected tools in model request
+  M-->>H: proposed tool call + arguments
+  H->>H: policy check + user consent as required
+  H->>S: tools/call over negotiated transport
+  S-->>H: result or structured error
+  H->>M: validated result in the conversation
+    </pre></div><figcaption>The model never reaches the server: every proposed call returns to the host, whose policy and consent check is the trust boundary before <code>tools/call</code> is sent.</figcaption></figure>
+
+    <h2 class="stage-label sl-when" id="when-to-use-when-not">Decision boundary</h2>
+    <div class="pc">
+      <div class="pc-col pros"><h4 class="pc-h">Use when</h4><ul>
+        <li>Tools are shared across apps, teams or machines.</li>
+        <li>The consumer is a model, not a developer reading docs.</li>
+        <li>The tool menu must change without shipping client code.</li>
+      </ul></div>
+      <div class="pc-col cons"><h4 class="pc-h">Skip when</h4><ul>
+        <li>One app, one machine, tools never leave it.</li>
+        <li>High-frequency inner loops feel the handshake overhead.</li>
+        <li>Only your own code calls the endpoint, never a model.</li>
+        <li>You cannot audit what a remote server exposes.</li>
+      </ul></div>
+    </div>
+
+    <h2 class="stage-label sl-ex" id="example">Worked example</h2>
+    <div class="example">
+      <p class="ex-note">Illustrative Python SDK shape, not a pinned recipe: SDK APIs change, so check the official quickstart and the generated tool schema before deploying. Debug the host-client-server exchange before blaming the model.</p>
+      <pre class="code" data-lang="python" data-file="fastmcp_server.py"><code><span class="tk-k">from</span> mcp.server.fastmcp <span class="tk-k">import</span> FastMCP
+
+mcp = FastMCP(<span class="tk-s">"tools"</span>)          <span class="tk-c"># one server, every MCP client</span>
+
+<span class="tk-f">@mcp.tool()</span>
+<span class="tk-k">def</span> <span class="tk-f">get_weather</span>(city: <span class="tk-k">str</span>) -> <span class="tk-k">str</span>:
+    <span class="tk-s">"""Current weather for a city."""</span>     <span class="tk-c"># docstring = description</span>
+    <span class="tk-k">return</span> <span class="tk-f">fetch_weather</span>(city)
+
+mcp.<span class="tk-f">run</span>()   <span class="tk-c"># stdio locally · streamable HTTP for remote</span>
+
+<span class="tk-c"># debug: npx @modelcontextprotocol/inspector python fastmcp_server.py</span></code></pre>
+      <ul>
+        <li>One server can serve several compatible hosts, subject to each host’s protocol version, trust policy and tool permissions.</li>
+        <li><b>GitHub, Sentry, Stripe</b> ship public MCP servers agents call directly.</li>
+      </ul>
+    </div>
+
+    <h2 class="stage-label sl-extra" id="watch-out">Failure modes</h2>
+    <div class="pit-list"><ul>
+      <li><b>Trust decision:</b> a remote server shapes what your model sees and does.</li>
+      <li><b>Injection:</b> tool results and resources are untrusted input (<a class="xl" href="../07-security/injection.html">injection</a>).</li>
+      <li><b>Over-exposure:</b> drop table next to read row is one confused model away.</li>
+      <li><b>stdio corruption:</b> third-party library prints break the wire too.</li>
+    </ul></div>
+
+    <h2 class="stage-label sl-extra" id="remember">Keep in mind</h2>
+    <div class="remember"><ul>
+      <li>MCP standardizes host-client-server messages; compatibility still needs matching protocol versions, capabilities, transports and authorization.</li>
+      <li>Keep protocol discovery separate from consent and authorization; a declared capability does not grant permission.</li>
+      <li>Lifecycle depends on the protocol version you target: earlier versions open each session with an <code>initialize</code> handshake before <code>tools/list</code> and <code>tools/call</code>. Check the spec for that version.</li>
+      <li>stdio: stdout is the wire, logging goes to stderr.</li>
+      <li>Debug in the Inspector before blaming the client.</li>
+    </ul></div>
+
+    <section class="references" aria-labelledby="primary-sources"><h2 id="primary-sources">Primary sources</h2><ul><li><a href="https://modelcontextprotocol.io/specification/latest" rel="noreferrer">MCP specification</a></li><li><a href="https://modelcontextprotocol.io/specification/latest/basic/authorization" rel="noreferrer">MCP authorization specification</a></li></ul></section>
+
+    <section class="lab-check" aria-labelledby="try-verify-explain"><h2 id="try-verify-explain">Try, verify, explain</h2><ol><li>Draw the call path from application host to MCP client to server. Mark capability discovery, transport, authenticated identity, tool permission and where user approval belongs.</li><li>Point the MCP Inspector at the example server: call <code>tools/list</code> and compare the generated <code>inputSchema</code> with the function signature and docstring, then add one <code>print()</code> to stdout and observe how the stdio session breaks.</li><li>Explain why the model never connects to the MCP server directly: what does the host know that neither model nor server knows, and why can a tool annotation such as <code>readOnlyHint</code> not replace the host’s policy check?</li></ol></section>
+
+    <nav class="pager" id="pager"></nav>
+
+    <footer class="footer">
+      learning-project · tracks/ai · press ⌘K or / to search every chapter · diagrams load Mermaid from a CDN when online
+    </footer>
+  </div>
+</main>
+
+<script src="../../js/app.js"></script>
+</body>
+</html>

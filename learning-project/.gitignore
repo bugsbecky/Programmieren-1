@@ -1,0 +1,25 @@
+.DS_Store
+*.log
+*.pid
+
+# Dependencies & build output
+**/node_modules/
+**/dist/
+**/target/
+**/.run/
+.vercel/
+
+# Env & secrets
+**/.env
+!**/.env.example
+
+# Code for Cleaning — solutions stay local
+programs/code-for-cleaning/solutions/
+**/*.class
+
+# Files written by the file-I/O tasks (students/kevin/java exercise 07)
+diary.txt
+savings.csv
+
+# Learner profile exports (local backup; personal store is separate)
+.learner/

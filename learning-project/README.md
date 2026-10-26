@@ -1,0 +1,104 @@
+# learning-project hello
+
+**Students: open the website and start at step 1.** One numbered list takes you from zero (what is a program?) to a real Java backend, in four levels: Beginner, Java, Backend, Pro. Every step says what to do:
+
+| Mark | Meaning |
+|------|---------|
+| **Read** | Read a page on the website |
+| **Do** | Build or practise it on your computer |
+| **Check** | Can you really do it? Tick it and move on |
+
+Your ticks are saved in your browser. The **Continue** button always opens the next step, and on every lesson page a small bar says which step it is, with **I did this ✓**.
+
+The path itself lives in [`hub/path.mjs`](hub/path.mjs). The landing page is [`hub/index.html`](hub/index.html). Everything is visible to everyone, student tasks and solutions included.
+
+## On your computer
+
+Step 4 of the path ([Get set up](sheets/setup/README.md)) does this with you:
+
+```bash
+git clone https://github.com/kevin-voss/learning-project.git
+cd learning-project
+git switch -c your-name
+```
+
+Personal exercise sheets from a teacher are in [`students/<your-name>/`](students/README.md): one folder per exercise, one per task. Write your code in the task's `my-solution/`, test it with `make test-task TASK=04_2`, compare with `solution/`, commit and push. In Cursor, five commands help without giving the answer (below).
+
+## Structure
+
+| Path | What lives there | Used by the path |
+|------|------------------|---------------------|
+| [`hub/`](hub/index.html) | Landing page, `path.mjs` (the step list), `progress.js`, `sheet.js`, `theme/` (the one design), `scripts/` | — |
+| [`docs/`](docs/LEARNING_PATH.md) | `LEARNING_PATH.md` (why this order, one home per topic), `STYLE.md` (how pages are written), `AUDIT.md`, learner memory | Look it up |
+| [`sheets/`](sheets/README.md) | Short pages, one idea each: first program, setup, Git, HTML, CSS, DOM, JSON, fetch, Java map, glossary | Read steps |
+| [`drills/`](drills/javascript/README.md) | JavaScript drills with tests | Stage 4 |
+| [`projects/`](projects/README.md) | The project ladder `01`–`12` (`README`, `step-by-step.md`, `starter/`, `solution/`) plus `extras/` | Do steps |
+| [`tracks/`](tracks/) | Deep courses: computer science, Java, Spring Boot ParcelPilot, architecture, AI field guide, AWS GenAI Pro | Read and Do steps |
+| [`programs/`](programs/code-for-cleaning/README.md) | Code for Cleaning: real-life Java task rounds | Extras |
+| [`students/`](students/README.md) | `<student>/<subject>/exercises/exercise-NN-…/task-NN-k-…/` with README, `my-solution/`, `solution/` | My tasks |
+
+```
+learning-project/
+├── README.md · AGENTS.md · Makefile · vercel.json · .gitignore
+├── hub/            # index.html · path.mjs · progress.js · sheet.js · landing.css · theme/ · scripts/
+├── docs/           # LEARNING_PATH.md · STYLE.md · AUDIT.md · learner-memory/
+├── sheets/         # start · setup · git · html · css · javascript · java · (nodejs · npm · react · typescript)
+├── drills/         # javascript/
+├── projects/       # 01 about-me → 02 shopping list → … → 11 parcel database → 12 calculator · extras/
+├── tracks/         # computer-science · java · spring-boot · architecture · ai · certifications/
+├── programs/       # code-for-cleaning/
+└── students/       # <student>/<subject>/exercises/<exercise>/<task>/
+```
+
+## The website
+
+The landing page shows the **next step** first, then **The path** (levels → stages → steps, from `hub/path.mjs`), **My tasks** (from `students/`), **Look it up** (every page, by folder) and help in the footer. Only the path order is written by hand. Every page uses one theme from [`hub/theme/`](hub/theme/README.md); pages are written as in [`docs/STYLE.md`](docs/STYLE.md).
+
+| File | Job |
+|------|-----|
+| `hub/path.mjs` | Levels, stages and steps in order. Add a step here to put it on the path. Never rename or reuse a step `id` (browsers save progress by id); retired ids go into `RETIRED` |
+| `hub/progress.js` | Ticks, the next-step card, the step bar on every page (saved in `localStorage`), the light/dark toggle |
+| `hub/sheet.js` | Renders Markdown pages: `> [!PICTURE]` / `[!TRY]` / `[!CHECK]` boxes, code colours, heading anchors |
+| `hub/theme/` | Tokens, components and the step-by-step animations (`<div data-anim="…">`) |
+| `hub/scripts/header.mjs` | The one site header on every page: home, path, tasks, look it up, progress, **Continue**, light/dark |
+| `hub/scripts/check-path.mjs` | Fails on a duplicate id, a retired id, or a step that links to a missing page |
+| `hub/scripts/catalog.mjs` | Writes path, students and catalog into `hub/index.html`; fails if a step links to a missing file |
+| `hub/scripts/build-site.mjs` | Builds `dist/site`: every `.md` as a page, code pages for `.java` files, `hub/path.json` for the step bar |
+| `hub/scripts/check-links.mjs` | Fails when any internal link on the site is broken |
+
+Vercel runs path check + build + link check on every deploy (`vercel.json`). Locally: `make site`, then serve `dist/site` (for example `python3 -m http.server -d dist/site`).
+
+## Quick commands
+
+```bash
+# JS drills
+make test
+
+# Tests of one student task on its my-solution/ (PART=a: one part only, SOLUTION=1: on solution/)
+make test-task TASK=04_2
+
+# Website: check the path, build dist/site, check links
+make site
+
+# New exercise sheet with its tasks for a student (or /new-exercise in Cursor); also updates the landing page
+make new-exercise STUDENT=becky SUBJECT=computer-science NUMBER=05 TITLE="Loops" TASKS="Times table, Guess the number"
+
+# CS demos after edits
+node tracks/computer-science/scripts/verify-demos.mjs
+```
+
+## Cursor
+
+Type `/` in the Cursor chat. Five commands for students, in the order you need them, on any task (a student task, a project, a drill, a lesson). None of them writes your solution.
+
+| Command | When |
+|---------|------|
+| `/next` | Where am I? What do I do now? |
+| `/stuck` | You are stuck. Add the red error text, a word you do not know, or what you tried |
+| `/test` | One part written: runs the task's tests on your code (and makes them if the task has none yet) |
+| `/check` | You think it works: it runs your examples and tells you what is good and what to improve |
+| `/done` | You are finished: last check, three questions, then what comes next |
+
+For teachers: `/new-exercise` (an exercise sheet for one student) and `/new-content` (a lesson, sheet, project or drill, in its one home). Rules: [`.cursor/rules/`](.cursor/rules/) (`tutor.mdc` for the student commands). Skills: `learner-memory`, `caveman`.
+
+Agents: [`AGENTS.md`](AGENTS.md).

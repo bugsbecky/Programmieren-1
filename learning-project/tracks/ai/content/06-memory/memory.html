@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memory: short-term, long-term, summaries · AI Engineering Field Guide</title>
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/flow.css">
+</head>
+<body>
+
+<div id="progress"></div>
+
+<header class="topbar">
+  <button class="tbtn" id="nav-toggle" type="button" aria-label="Open contents" aria-controls="toc" aria-expanded="false">☰</button>
+  <a class="brand" href="../../index.html"><b>ai</b>·field-guide</a>
+  <a class="hub-link" href="../../../../hub/index.html">Learning hub</a>
+  <div class="tools">
+    <button class="tbtn search-btn" id="search-open" type="button" aria-label="Search the guide"><span>Search</span><kbd>⌘K</kbd></button>
+    <button class="tbtn" id="expand-all" type="button">expand</button>
+  </div>
+</header>
+
+<nav class="sidebar" id="toc" aria-label="Topics"></nav>
+
+<main class="main">
+  <div class="content">
+    <header class="topic-head">
+      <div class="kicker">Part 5 · Memory &amp; safety · 25/31</div>
+      <h1>Memory: short-term, long-term, summaries</h1>
+      <p class="lead">Two clocks run in every assistant. The window is short-term: this session as the model sees it, rebuilt every call, gone when the session ends. The store is long-term: facts written back after sessions and retrieved across them. Memory is the plumbing between the two clocks.</p>
+      <p class="chapter-summary"><b>In this chapter</b> Separate current context, summaries, durable user memory and model weights; make retrieval scoped, inspectable and correctable.</p>
+    </header>
+
+  <h2 class="stage-label sl-why" id="why-you-need-it">Why this layer matters</h2>
+  <div class="why">
+    <ul>
+      <li><b>Amnesia at session end.</b> The transcript dies, the next session starts from zero.</li>
+      <li><b>Windows fill mid-session.</b> Long threads overflow the budget, see <a class="xl" href="../02-tokens-context/context-budget.html">context budgeting</a>.</li>
+      <li><b>Users expect continuity.</b> "Remember my preferences" must actually work.</li>
+      <li><b>Re-typing is not memory.</b> Restating decisions every session is the failure mode.</li>
+    </ul>
+  </div>
+
+  <h2 class="stage-label sl-sol" id="solutions">Memory lifecycle</h2>
+  <p>A and B manage the window inside the session, C and D manage the store across sessions.</p>
+  <figure class="diagram"><div class="diag-body"><pre class="mermaid">flowchart LR
+  T["turns"] --&gt; B{"budget&lt;br/&gt;check"}
+  B --&gt;|"under 70%"| W["window&lt;br/&gt;last K verbatim"]
+  B --&gt;|"over 70%"| C["compact into&lt;br/&gt;running&lt;br/&gt;summary"] --&gt; W
+  E["session end"] --&gt; X["extract&lt;br/&gt;facts"] --&gt; D["fact store&lt;br/&gt;per user"]
+  D --&gt;|"top-k"| W</pre></div><figcaption>The 70% budget check is the only in-session branch; long-term facts reach the window solely through top-k retrieval, so that query is where per-user filtering must happen.</figcaption></figure>
+  <div class="sol-list">
+    <div class="sol-item open">
+      <button class="sol-head" type="button">
+        <span class="sol-no">A</span>
+        <span class="sol-name">Sliding window</span>
+        <span class="sol-sum">keep the last N turns, cheapest baseline</span>
+        <span class="sol-chev">▶</span>
+      </button>
+      <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+        <h4>How it works</h4>
+        <ul>
+          <li>Keep the last N turns, drop everything older.</li>
+          <li>Anchored upgrade: pin turn one, the goal, plus the last K.</li>
+          <li>Fits stateless FAQ only, loses decisions and constraints silently.</li>
+        </ul>
+      </div></div></div>
+    </div>
+    <div class="sol-item">
+      <button class="sol-head" type="button">
+        <span class="sol-no">B</span>
+        <span class="sol-name">Summary + last-K hybrid <span class="sol-tag best">default</span></span>
+        <span class="sol-sum">running summary plus verbatim tail</span>
+        <span class="sol-chev">▶</span>
+      </button>
+      <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+        <h4>How it works</h4>
+        <ul>
+          <li>Running summary of old turns, last K stay verbatim, promises stay quotable.</li>
+          <li><button class="term" type="button" data-tip="Merge old turns into the summary before the window overflows.">Compact</button> at ~70% of the history budget, never at overflow.</li>
+          <li>Summaries keep decisions, numbers, constraints, open questions.</li>
+        </ul>
+        <h4>Drift</h4>
+        <ul>
+          <li>Summary-of-summary merges lose detail, errors compound like lossy copies.</li>
+          <li>Re-derive periodically from source turns kept in the transcript table.</li>
+          <li>Structured blocks merge cheaper than narrative paragraphs.</li>
+        </ul>
+      </div></div></div>
+    </div>
+    <div class="sol-item">
+      <button class="sol-head" type="button">
+        <span class="sol-no">C</span>
+        <span class="sol-name">Fact store + retrieval</span>
+        <span class="sol-sum">durable facts per user, fetched like RAG</span>
+        <span class="sol-chev">▶</span>
+      </button>
+      <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+        <h4>How it works</h4>
+        <ul>
+          <li>One fact per row: timestamped, scoped, embedded.</li>
+          <li>Top-k by similarity injects a labeled block, see <a class="xl" href="../03-rag-search/embeddings.html">embeddings</a>.</li>
+          <li>Label it "known facts", data to use, not gospel.</li>
+        </ul>
+        <h4>Kinds</h4>
+        <ul>
+          <li>Profile: small, high-trust, injected whole, never left to retrieval.</li>
+          <li><button class="term" type="button" data-tip="Memory of events, past threads kept as summaries.">Episodic</button>: summarized past threads, always fetched by similarity.</li>
+          <li>Procedural: AGENTS.md-style rule files, the file is the store.</li>
+        </ul>
+      </div></div></div>
+    </div>
+    <div class="sol-item">
+      <button class="sol-head" type="button">
+        <span class="sol-no">D</span>
+        <span class="sol-name">Write-back policies</span>
+        <span class="sol-sum">what gets written when, and how it retires</span>
+        <span class="sol-chev">▶</span>
+      </button>
+      <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+        <h4>How it works</h4>
+        <ul>
+          <li>Explicit: dedicated extraction call at session end, testable.</li>
+          <li>Automatic: extract mid-session, fresher but noisier writes.</li>
+          <li>Dedupe before insert, embedding similarity plus exact keys.</li>
+          <li>Scope every row: user, session, org, project.</li>
+        </ul>
+        <h4>Supersede and forget</h4>
+        <ul>
+          <li>Contradictions mark old rows superseded, keep the lineage.</li>
+          <li>"Moved to Berlin" must retire "lives in Paris".</li>
+          <li>TTL volatile facts, prune what retrieval never picks.</li>
+        </ul>
+        <h4>Privacy</h4>
+        <ul>
+          <li>Multi-user isolation is a security boundary, see <a class="xl" href="../07-security/guardrails.html">guardrails</a>.</li>
+          <li>PII flows in freely, decide what is allowed, encrypt at rest.</li>
+          <li>Delete-me removes the row, the vector copy, backups, logs.</li>
+        </ul>
+      </div></div></div>
+    </div>
+  </div>
+
+  <h2 class="stage-label sl-when" id="when-to-use-when-not">Decision boundary</h2>
+  <div class="pc">
+    <div class="pc-col pros"><h4 class="pc-h">Use when</h4><ul><li>Sessions run long with decisions and constraints.</li><li>The product promise is cross-session continuity.</li><li>Source turns are kept for re-derivation.</li><li>Retrieval filters by user and scope server-side.</li></ul></div>
+    <div class="pc-col cons"><h4 class="pc-h">Skip when</h4><ul><li>One-shot tasks, stateless FAQ, anonymous traffic.</li><li>Regulated flows where retention is a liability.</li><li>You cannot isolate or delete per user.</li><li>A wrong remembered fact is worse than asking again.</li></ul></div>
+  </div>
+
+  <h2 class="stage-label sl-ex" id="example">Worked example</h2>
+  <div class="example">
+    <p class="ex-note">One table carries the whole policy: isolation, scope, TTL, lineage, retrieval. Every query filters on user_id and scope.</p>
+    <pre class="code" data-lang="sql" data-file="memory.sql"><code><span class="tk-k">CREATE TABLE</span> memory (
+  fact_id       uuid <span class="tk-k">PRIMARY KEY</span>,  <span class="tk-c">-- one durable fact per row</span>
+  user_id       uuid <span class="tk-k">NOT NULL</span>,     <span class="tk-c">-- isolation boundary, always filter</span>
+  scope         text <span class="tk-k">NOT NULL</span>,     <span class="tk-c">-- 'user' · 'session' · 'org' · 'project'</span>
+  content       text <span class="tk-k">NOT NULL</span>,     <span class="tk-c">-- 'user prefers concise answers'</span>
+  source_id     uuid,                    <span class="tk-c">-- originating session, for audit</span>
+  created_at    timestamptz <span class="tk-k">NOT NULL</span>,
+  expires_at    timestamptz,             <span class="tk-c">-- TTL volatile facts, null means durable</span>
+  superseded_by uuid,                    <span class="tk-c">-- contradiction resolution keeps lineage</span>
+  embedding     <span class="tk-t">vector</span>(<span class="tk-n">1536</span>)       <span class="tk-c">-- similarity retrieval, top-k</span>
+);</code></pre>
+  </div>
+
+  <h2 class="stage-label sl-extra" id="watch-out">Failure modes</h2>
+  <div class="pit-list"><ul>
+    <li><b>Memory bleed:</b> one missing user filter shows customer A to B.</li>
+    <li><b>Stale facts steer silently:</b> "free plan" from last year.</li>
+    <li><b>Injection persists:</b> planted facts steer every future session, see <a class="xl" href="../07-security/injection.html">prompt injection</a>.</li>
+    <li><b>Flaky evals:</b> unfrozen stores break goldens, see <a class="xl" href="../08-evals/evals.html">evals</a>.</li>
+    <li><b>Cost creep:</b> every turn pays embedding plus memory tokens, cap k.</li>
+  </ul></div>
+
+  <h2 class="stage-label sl-extra" id="remember">Keep in mind</h2>
+  <div class="remember"><ul>
+    <li>Two clocks: the window dies with the session, the store survives.</li>
+    <li>Default is the hybrid, compact at ~70%, see <a class="xl" href="../02-tokens-context/context-budget.html">context budgeting</a>.</li>
+    <li>Re-derive summaries from source turns on a schedule.</li>
+    <li>Retrieve like RAG: top-k into a labeled block, <a class="xl" href="../03-rag-search/embeddings.html">embeddings</a>.</li>
+    <li>Write-back: dedupe, scope, supersede, make delete real.</li>
+  </ul></div>
+  
+    <section class="references" aria-labelledby="primary-sources"><h2 id="primary-sources">Primary sources</h2><ul><li><a href="https://arxiv.org/abs/2304.03442" rel="noreferrer">Generative Agents: Interactive Simulacra</a></li><li><a href="https://arxiv.org/abs/2310.08560" rel="noreferrer">MemGPT</a></li></ul></section>
+
+    <section class="lab-check" aria-labelledby="try-verify-explain"><h2 id="try-verify-explain">Try, verify, explain</h2><ol><li>Given a user correction, decide whether it belongs in the current conversation, a summary, a durable profile or nowhere; state who can read it and how it expires.</li><li>Measure summary drift: plant 5 constraints and 3 numbers in a 40-turn transcript, summarize turns 1-30, then re-summarize that summary three times. Count which facts survive each pass.</li><li>Explain why "moved to Berlin" must mark "lives in Paris" superseded instead of adding a second row, and what top-k retrieval would inject if <code>superseded_by</code> were ignored.</li></ol></section>
+
+    <nav class="pager" id="pager"></nav>
+
+    <footer class="footer">
+      learning-project · tracks/ai · press ⌘K or / to search every chapter · diagrams load Mermaid from a CDN when online
+    </footer>
+  </div>
+</main>
+
+<script src="../../js/app.js"></script>
+</body>
+</html>

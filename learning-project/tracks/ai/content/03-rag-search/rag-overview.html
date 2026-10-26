@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAG the big picture · AI Engineering Field Guide</title>
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/flow.css">
+</head>
+<body>
+
+<div id="progress"></div>
+
+<header class="topbar">
+  <button class="tbtn" id="nav-toggle" type="button" aria-label="Open contents" aria-controls="toc" aria-expanded="false">☰</button>
+  <a class="brand" href="../../index.html"><b>ai</b>·field-guide</a>
+  <a class="hub-link" href="../../../../hub/index.html">Learning hub</a>
+  <div class="tools">
+    <button class="tbtn search-btn" id="search-open" type="button" aria-label="Search the guide"><span>Search</span><kbd>⌘K</kbd></button>
+    <button class="tbtn" id="expand-all" type="button">expand</button>
+  </div>
+</header>
+
+<nav class="sidebar" id="toc" aria-label="Topics"></nav>
+
+<main class="main">
+  <div class="content">
+    <header class="topic-head">
+      <div class="kicker">Part 3 · Retrieval · 11/31</div>
+      <h1>RAG the big picture</h1>
+      <p class="lead">A base model only knows its training data. Retrieval puts a few paragraphs of fresh, private text in front of it per question and has it answer and cite from them. No retraining.</p>
+      <p class="chapter-summary"><b>In this chapter</b> Follow the offline ingestion path and online query path; identify where permissions, freshness and evidence can fail.</p>
+    </header>
+
+  <h2 class="stage-label sl-why" id="why-you-need-it">Why this layer matters</h2>
+  <div class="why">
+    <ul>
+      <li><b>Frozen knowledge:</b> the model has never seen your wiki, contracts or tickets, and stopped learning at its training cutoff.</li>
+      <li><b>Confident invention:</b> ask anyway and it fills the gaps with fluent, plausible, unverifiable text.</li>
+      <li><b>Pasting everything fails:</b> context is finite and metered (see <a class="xl" href="../02-tokens-context/context-budget.html">context budget</a>). 500 pages × 10k queries a day is a real invoice, and recall still droops mid-window.</li>
+      <li><b>Fine-tuning the facts in fails:</b> weights teach style, not facts (see <a class="xl" href="../01-foundations/finetune-decide.html">the fine-tune decision</a>). Nothing trained today knows tomorrow's prices.</li>
+      <li><b>The real need:</b> the right few citable paragraphs per question, without retraining anything.</li>
+    </ul>
+  </div>
+
+  <h2 class="stage-label sl-sol" id="solutions">Retrieval pipeline</h2>
+  <p class="lead">Four ways to ground an answer in your facts. Retrieval wins most of them, the alternatives win niches.</p>
+  <div class="sol-list">
+
+    <div class="sol-item open">
+      <button class="sol-head" type="button">
+        <span class="sol-no">A</span>
+        <span class="sol-name">RAG pipeline <span class="sol-tag best">default</span></span>
+        <span class="sol-sum">fetch passages per question, answer with citations, never retrain</span>
+        <span class="sol-chev">▶</span>
+      </button>
+      <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+        <h4>How it works</h4>
+        <ul>
+          <li><button class="term" type="button" data-tip="Retrieval-Augmented Generation: fetch relevant passages first, then let the model answer with them in front of it. An open-book exam.">RAG</button> = <b>fetch, then answer.</b> Look up passages from YOUR data, put them in the prompt, answer from them, cite them.</li>
+          <li><b>Two pipelines:</b> an offline ingest batch job and an online query hot path. Keep them separate in your head and your code.</li>
+          <li><b>Fresh evidence, no retraining:</b> updating the index is a file drop; the model may still be fine-tuned for other goals. Enforce tenant and document ACL filters during retrieval, before evidence reaches the model, and recheck authorization at any action boundary.</li>
+          <li><b>What retrieval provides:</b> candidate evidence and provenance. Citation correctness, data locality and request cost depend on your implementation and must be validated (see <a class="xl" href="../02-tokens-context/tokens-cost.html">token cost</a>).</li>
+        </ul>
+        <figure class="diagram">
+          <div class="diag-body"><pre class="mermaid">
+flowchart TB
+  subgraph OFF["Offline ingest"]
+    direction LR
+    I["raw files"] --> P["parse to&lt;br/&gt;markdown"]
+    P --> C["chunk into&lt;br/&gt;passages"]
+    C --> E["embed + store&lt;br/&gt;vectors, metadata"]
+  end
+  subgraph ON["Online query"]
+    direction LR
+    Q["question"] --> R["retrieve top-k&lt;br/&gt;ACL-filtered"]
+    R --> RR["rerank&lt;br/&gt;candidates"]
+    RR --> G["generate with&lt;br/&gt;citations"]
+  end
+  OFF -. "fresh index" .-> ON
+  classDef off fill:#e7edf0,stroke:#557184,color:#18222d
+  classDef on fill:#f1e8dc,stroke:#a56d3e,color:#18222d
+  class I,P,C,E off
+  class Q,R,RR,G on
+          </pre></div><figcaption>Only the index crosses between the rows: answers are as fresh as the last ingest run, and ACL filtering belongs at retrieve, before generation ever sees a passage.</figcaption></figure>
+        <h4>Ingestion and parsing · where RAG pipelines quietly die</h4>
+        <ul>
+          <li><b>A PDF is a printout, not a document:</b> characters at coordinates. Two-column layouts, tables as positioned text, scans that are just photographs.</li>
+          <li><b>Native text vs OCR:</b> born-digital PDFs, HTML and Office files carry an exact text layer, so extraction is faithful. Scans are pictures: OCR guesses the letters, and every wrong guess flows into the embeddings. More in <a class="xl" href="../01-foundations/ml-multimodal.html">ML and multimodal</a>.</li>
+          <li><b>The parser ladder:</b> spend more only as the document resists. Layout parsers (Docling, Unstructured, LlamaParse) for born-digital files, classic OCR (Tesseract, PaddleOCR) for clean scans, cloud document AI (Azure DI, Google DocAI, Textract) for forms and tables at scale, a vision LLM for horror layouts, ColPali-style page-image retrieval when text is hopeless.</li>
+          <li><span class="wlabel why">why markdown</span> headings become boundaries for <a class="xl" href="chunking.html">chunking</a>, code fences stay atomic, lists stay lists.</li>
+          <li><b>Tables are the boss fight:</b> keep each table atomic (one table = one chunk) or serialize rows to markdown or JSON. A table split across three chunks answers nothing.</li>
+          <li><b>Incremental sync:</b> re-parse only changed documents, delete-and-replace by document id, dedupe on the way in. One PDF uploaded five times becomes five near-identical chunk sets that crowd out diversity.</li>
+          <li><b>Source of truth:</b> the index is disposable and rebuildable. Permissions, deletes and versions flow from the source system, never from index state.</li>
+          <li><span class="wlabel gotcha">gotcha</span> <b>failures are invisible:</b> the pipeline never errors. A merged table column or glued header surfaces months later as wrong answers, not parse logs. Parsing is the number one silent RAG killer.</li>
+          <li><span class="wlabel gotcha">cost</span> parsing is the biggest ingest line item: every page, once per run, so per-page prices compound across re-ingestions. Get the ladder right before scaling.</li>
+        </ul>
+        <pre class="code" data-lang="python" data-file="parse_to_markdown.py"><code><span class="tk-k">from</span> docling.document_converter <span class="tk-k">import</span> DocumentConverter
+
+doc = DocumentConverter().convert(<span class="tk-s">"annual_report.pdf"</span>)
+md = doc.document.export_to_markdown()  <span class="tk-c"># headings, tables and lists survive</span>
+tables = doc.document.tables            <span class="tk-c"># structured objects, not mangled text</span></code></pre>
+        <h4>Naive RAG failure modes</h4>
+        <ul>
+          <li><b>Retrieval miss:</b> the model cannot use a passage you never fetched. Most "the LLM is wrong" incidents are retrieval misses. Fixes live in <a class="xl" href="search-rerank.html">hybrid search and rerank</a>.</li>
+          <li><b>Vocabulary gap:</b> users say "time off", the docs say "PTO accrual". Pure vector search can miss, keyword fusion rescues.</li>
+          <li><b>Top-k redundancy:</b> five near-identical chunks fill the window with one idea and crowd out the rest.</li>
+          <li><b>Ignored context:</b> the model answers from its weights despite the passages. Instruct "answer only from these passages", require citations, then verify each citation supports its claim; a well-formed citation is not a correct one.</li>
+          <li><b>No honest miss:</b> without an abstention path, "not in my docs" becomes a hallucination.</li>
+          <li><b>Stale index:</b> documents changed upstream, the index never heard. Wire sync to source events.</li>
+        </ul>
+        <h4>Trade-offs</h4>
+        <ul>
+          <li><b>pro:</b> fresh, private, citable answers with no retraining; cost comes from parsing, retrieval and generation.</li>
+          <li><b>pro:</b> permissions and freshness live in the retrieval layer, before the model sees a token.</li>
+          <li><b>con:</b> a system, not a feature: parsing, chunking, search and evals, and one weak link caps everything downstream.</li>
+          <li><b>con:</b> retrieval quality is the ceiling. No generation upgrade recovers an unfetched passage.</li>
+        </ul>
+      </div></div></div>
+    </div>
+
+    <div class="sol-item">
+      <button class="sol-head" type="button">
+        <span class="sol-no">B</span>
+        <span class="sol-name">Long-context stuffing</span>
+        <span class="sol-sum">paste the docs into the prompt, no index to build or run</span>
+        <span class="sol-chev">▶</span>
+      </button>
+      <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+        <h4>How it works</h4>
+        <ul>
+          <li>Skip retrieval: paste a few hundred static pages into a long-context window and ask.</li>
+          <li>Fine for a small, static, rarely queried doc set: a demo, an internal FAQ, one contract.</li>
+        </ul>
+        <h4>Trade-offs</h4>
+        <ul>
+          <li><b>pro:</b> zero infrastructure, no pipeline to build, debug or keep fresh.</li>
+          <li><b>con:</b> you pay for the whole corpus on every question (see <a class="xl" href="../02-tokens-context/tokens-cost.html">token cost</a>).</li>
+          <li><b>con:</b> recall droops mid-window on long prompts (see <a class="xl" href="../02-tokens-context/context-budget.html">context budget</a>).</li>
+          <li><b>con:</b> weak citations, the model read one wall of text, not addressable passages.</li>
+          <li><b>con:</b> live, large or private corpora need retrieval anyway.</li>
+        </ul>
+      </div></div></div>
+    </div>
+
+    <div class="sol-item">
+      <button class="sol-head" type="button">
+        <span class="sol-no">C</span>
+        <span class="sol-name">Fine-tune the facts</span>
+        <span class="sol-sum">bake style, tone and vocabulary into weights, keep facts external</span>
+        <span class="sol-chev">▶</span>
+      </button>
+      <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+        <h4>How it works</h4>
+        <ul>
+          <li>Train on examples so behavior sticks: style, tone, output format, domain vocabulary.</li>
+          <li>Fine-tuning can change behavior and knowledge, but is a poor freshness mechanism for facts that change often; retrieval exposes current source evidence at query time. Full decision in <a class="xl" href="../01-foundations/finetune-decide.html">fine-tune vs RAG</a>.</li>
+        </ul>
+        <h4>Trade-offs</h4>
+        <ul>
+          <li><b>pro:</b> cheap at inference, format and tone follow the training data.</li>
+          <li><b>con:</b> no citations, frozen knowledge, retrain per base-model upgrade.</li>
+          <li><b>con:</b> a dead end for changing facts, pair it with retrieval instead.</li>
+        </ul>
+      </div></div></div>
+    </div>
+
+    <div class="sol-item">
+      <button class="sol-head" type="button">
+        <span class="sol-no">D</span>
+        <span class="sol-name">Just prompt it <span class="sol-tag cheap">cheap</span></span>
+        <span class="sol-sum">ask the base model directly, zero grounding plumbing</span>
+        <span class="sol-chev">▶</span>
+      </button>
+      <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+        <h4>How it works</h4>
+        <ul>
+          <li>No retrieval, no fine-tune: ask and trust the training data. Fine for demos and throwaways over small static fact sets.</li>
+        </ul>
+        <h4>Trade-offs</h4>
+        <ul>
+          <li><b>pro:</b> zero setup, the fastest first prototype.</li>
+          <li><b>con:</b> no citations, silent staleness, private data out of reach.</li>
+        </ul>
+      </div></div></div>
+    </div>
+
+  </div>
+  <p class="note">Each pipeline stage has its own deep dive: parsing above, then <a class="xl" href="chunking.html">chunking</a>, <a class="xl" href="embeddings.html">embeddings</a> and <a class="xl" href="search-rerank.html">search and rerank</a>.</p>
+
+  <h2 class="stage-label sl-when" id="when-to-use-when-not">Decision boundary</h2>
+  <div class="pc">
+    <div class="pc-col pros"><h4 class="pc-h">Use when</h4>
+      <ul>
+        <li>The corpus is large, private or live, and citations are part of the product.</li>
+        <li>Facts change faster than any training cycle.</li>
+        <li>Cost per question should stay flat as the corpus grows.</li>
+        <li>Permissions must filter answers per user or tenant.</li>
+      </ul>
+    </div>
+    <div class="pc-col cons"><h4 class="pc-h">Skip when</h4>
+      <ul>
+        <li>The doc set is tiny and static: paste it whole.</li>
+        <li>You only want style, tone or format: prompt or fine-tune instead (see <a class="xl" href="../01-foundations/finetune-decide.html">fine-tune vs RAG</a>).</li>
+        <li>It is a demo or throwaway, grounding does not matter yet.</li>
+        <li>Nobody can own parsing, chunking, search and evals.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2 class="stage-label sl-ex" id="example">Worked example</h2>
+  <div class="example">
+    <p class="ex-note">Who runs on this, then the smallest honest pipeline: an offline batch job builds the index, the online hot path retrieves and answers per question.</p>
+    <div class="grid2">
+      <div class="wcard">
+        <h4>support bot · help center</h4>
+        <ul>
+          <li>Answers from the help center instead of guessing.</li>
+          <li>Citations let users verify, "not in our docs" becomes an honest answer.</li>
+        </ul>
+      </div>
+      <div class="wcard">
+        <h4>enterprise search · permissions</h4>
+        <ul>
+          <li>Confluence, Slack and Drive behind one chat, ACLs filtering retrieval before the model sees a token.</li>
+        </ul>
+      </div>
+      <div class="wcard">
+        <h4>answer engine · live web</h4>
+        <ul>
+          <li>Perplexity-style products are RAG over the live web.</li>
+          <li>Citations are the product feature, not a nicety.</li>
+        </ul>
+      </div>
+      <div class="wcard">
+        <h4>invoice pipeline · cloud AI</h4>
+        <ul>
+          <li>Cloud document AI on scans, totals validated against order systems.</li>
+          <li>Only clean fields reach the index.</li>
+        </ul>
+      </div>
+    </div>
+    <pre class="code" data-lang="python" data-file="hello_rag.py"><code><span class="tk-c"># offline, a batch job over your documents</span>
+chunks = <span class="tk-f">split</span>(<span class="tk-f">load_pdf</span>(<span class="tk-s">"handbook.pdf"</span>), size=<span class="tk-n">800</span>)
+db = <span class="tk-f">embed_and_store</span>(chunks)          <span class="tk-c"># vectors plus metadata</span>
+
+<span class="tk-c"># online, the hot path for every question</span>
+docs = <span class="tk-f">search</span>(<span class="tk-f">embed</span>(question), k=<span class="tk-n">5</span>)   <span class="tk-c"># hybrid and rerank in real systems</span>
+answer = <span class="tk-f">llm</span>(<span class="tk-f">answer_prompt</span>(docs, question))</code></pre>
+  </div>
+
+  <h2 class="stage-label sl-extra" id="watch-out">Failure modes</h2>
+  <div class="pit-list">
+    <ul>
+      <li><b>Silent parse failure:</b> confidently wrong answers about the one table the user cared about · inspect parsed output for your worst pages before scaling (see <a class="xl" href="../08-evals/evals.html">evals</a>).</li>
+      <li><b>Per-page cost compounds:</b> every re-ingestion parses every page again · vision-LLM parsing at scale is a budget decision.</li>
+      <li><b>Vision parsing invents details:</b> validate critical fields against source systems, keep page images for audit.</li>
+      <li><b>Duplicate ingestion:</b> five copies, five overlapping chunk sets · hash or content-match on the way in.</li>
+      <li><b>Retrieval is the ceiling:</b> debug "wrong answer" as a retrieval bug first, a generation bug second.</li>
+      <li><b>Stale index:</b> answers keep quoting deleted policy · tie deletions and updates to source-of-truth events.</li>
+    </ul>
+  </div>
+
+  <h2 class="stage-label sl-extra" id="remember">Keep in mind</h2>
+  <div class="remember">
+    <ul>
+      <li>Two code paths, one index: offline ingest batch job, online query hot path.</li>
+      <li>Parse to markdown with tables and headings intact before chunking.</li>
+      <li>Escalate parser spend only as documents resist: native text, then layout, then OCR, then vision.</li>
+      <li>Dedupe and delete-and-replace on every sync. The index is disposable, the source system is not.</li>
+      <li>Filter permissions in retrieval, before the model sees a token.</li>
+      <li>Prompt for citations and honest misses. Evaluate retrieval separately from generation.</li>
+    </ul>
+  </div>
+  
+    <section class="references" aria-labelledby="primary-sources"><h2 id="primary-sources">Primary sources</h2><ul><li><a href="https://arxiv.org/abs/2005.11401" rel="noreferrer">Retrieval-Augmented Generation</a></li><li><a href="https://genai.owasp.org/llmrisk/llm03-data-and-model-poisoning/" rel="noreferrer">OWASP LLM Top 10: RAG and vector store risks</a></li></ul></section>
+
+    <section class="lab-check" aria-labelledby="try-verify-explain"><h2 id="try-verify-explain">Try, verify, explain</h2><ol><li>Trace a user question for one tenant from document ACL filter through retrieval to cited answer. Identify the point where a cross-tenant chunk must be excluded.</li><li>Index 20 documents and write 10 questions whose answer passage you know. For each, log whether that passage reached the top-5 and whether the answer was correct. How many wrong answers were retrieval misses?</li><li>A policy page is edited at 9:00. Explain which steps must run before answers change, why no model retraining is on that path, and what a deleted source document must trigger in the index.</li></ol></section>
+
+    <nav class="pager" id="pager"></nav>
+
+    <footer class="footer">
+      learning-project · tracks/ai · press ⌘K or / to search every chapter · diagrams load Mermaid from a CDN when online
+    </footer>
+  </div>
+</main>
+
+<script src="../../js/app.js"></script>
+</body>
+</html>

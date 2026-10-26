@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embeddings and vector stores · AI Engineering Field Guide</title>
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/flow.css">
+</head>
+<body>
+
+<div id="progress"></div>
+
+<header class="topbar">
+  <button class="tbtn" id="nav-toggle" type="button" aria-label="Open contents" aria-controls="toc" aria-expanded="false">☰</button>
+  <a class="brand" href="../../index.html"><b>ai</b>·field-guide</a>
+  <a class="hub-link" href="../../../../hub/index.html">Learning hub</a>
+  <div class="tools">
+    <button class="tbtn search-btn" id="search-open" type="button" aria-label="Search the guide"><span>Search</span><kbd>⌘K</kbd></button>
+    <button class="tbtn" id="expand-all" type="button">expand</button>
+  </div>
+</header>
+
+<nav class="sidebar" id="toc" aria-label="Topics"></nav>
+
+<main class="main">
+  <div class="content">
+    <header class="topic-head">
+      <div class="kicker">Part 3 · Retrieval · 13/31</div>
+      <h1>Embeddings and vector stores</h1>
+      <p class="lead">Keyword search fails the moment wording differs. An embedding turns each chunk into a vector, so "how similar are these meanings" becomes arithmetic instead of string matching. The model sets the map's quality, the store sets how fast you can query it.</p>
+      <p class="chapter-summary"><b>In this chapter</b> Trace text through embedding, approximate nearest-neighbor retrieval and metadata filtering; understand recall, dimension and index tradeoffs.</p>
+    </header>
+
+  <h2 class="stage-label sl-why" id="why-you-need-it">Why this layer matters</h2>
+  <div class="why">
+    <ul>
+      <li><b>Paraphrase:</b> "How do I get my money back?" and "What is the refund policy?" share zero useful keywords.</li>
+      <li><b>String matching:</b> fails on synonyms, jargon gaps and typos. Computers compare <b>numbers</b>.</li>
+      <li><b>Forced move:</b> turn meaning into geometry, so distance between texts becomes computable.</li>
+    </ul>
+    <ul>
+      <li><b>Meaning as a vector:</b> an <button class="term" type="button" data-tip="a model whose whole job is mapping text to vectors, trained so similar meanings land close together regardless of wording">embedding model</button> compresses a passage into a few hundred to a few thousand floats. No single dimension is readable; the <b>direction</b> of the whole vector carries the meaning. Same representation-learning idea as <a class="xl" href="../01-foundations/ml-multimodal.html">ML fundamentals</a>.</li>
+      <li><b><button class="term" type="button" data-tip="the angle between two vectors, 1 means same direction, 0 means unrelated. On normalized vectors it equals a plain dot product, which is why everyone normalizes">cosine similarity</button>:</b> compare directions, ignore lengths. Rough ruler: ~1.0 same meaning · ~0.8 cousins · ~0.5 vaguely related · ~0 unrelated; real ranges shift per model, so calibrate.</li>
+      <li><b>Geometry:</b> paraphrases cluster, questions land near their answers. "Find similar" becomes "find nearest", a problem maps solved decades ago. In mean-pooled models the vector is the <b>mean</b> of token vectors, so wide chunks blend to topic mush, see <a class="xl" href="chunking.html">chunking</a>.</li>
+      <li><b>Trained by contrast:</b> millions of (passage, similar passage, stranger) triples; pull the pair together, push the stranger away. That objective is why paraphrases land close.</li>
+    </ul>
+  </div>
+
+  <figure class="diagram">
+    <div class="diag-body"><pre class="mermaid">
+flowchart TB
+  subgraph TOK["Encode per token"]
+    direction LR
+    A["Text&lt;br/&gt;refund question"] --> B["Tokenizer&lt;br/&gt;subwords"]
+    B --> C["Encoder&lt;br/&gt;layers"]
+    C --> D["Hidden states&lt;br/&gt;per token"]
+  end
+  subgraph POOL["Pool to one vector"]
+    direction LR
+    E["Mean pooling&lt;br/&gt;average states"] --> F["L2 normalize&lt;br/&gt;unit length"]
+    F --> G["Embedding&lt;br/&gt;model-sized vector"]
+  end
+  TOK --> POOL
+    </pre></div><figcaption>Pooling is where detail is lost: every token state is averaged into one vector, so a wide chunk blurs its topics. Unit length afterwards makes dot product equal cosine.</figcaption></figure>
+
+  <h2 class="stage-label sl-sol" id="solutions">Representation and index</h2>
+  <p class="lead">Three real homes for the vectors, from production default to prototype.</p>
+  <div class="sol-list">
+    <div class="sol-item open">
+      <button class="sol-head" type="button">
+        <span class="sol-no">A</span>
+        <span class="sol-name">pgvector in Postgres <span class="sol-tag best">default</span></span>
+        <span class="sol-sum">one database for app state and vectors, joins and transactions free</span>
+        <span class="sol-chev">▶</span>
+      </button>
+      <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+        <h4>How it works</h4>
+        <ul>
+          <li>Chunks, users, tenants and permissions join in one query. Backups and transactions come free because it is Postgres.</li>
+          <li>An <button class="term" type="button" data-tip="Hierarchical Navigable Small World, the default ANN index. A layered skip graph, enter zoomed out and refine downward, about log(n) hops">HNSW</button> index keeps queries fast into the low millions of rows per table.</li>
+          <li><b>Rule of thumb:</b> if Postgres already runs your app, start here. Leave only on a measured wall: recall at your p99, index build time, memory pressure (see <a class="xl" href="../04-tools-mcp/tool-calling.html">DB sync</a>).</li>
+        </ul>
+        <pre class="code" data-lang="sql" data-file="pgvector_setup.sql"><code><span class="tk-c">-- one table for state + vectors, one index for speed</span>
+<span class="tk-k">ALTER TABLE</span> chunks <span class="tk-k">ADD COLUMN</span> embedding <span class="tk-t">vector</span>(<span class="tk-n">1536</span>);
+<span class="tk-k">CREATE INDEX ON</span> chunks <span class="tk-k">USING</span> hnsw (embedding <span class="tk-t">vector_cosine_ops</span>);</code></pre>
+        <h4>ANN indexes · HNSW vs IVFFlat</h4>
+        <ul>
+          <li><b>Brute force is hopeless:</b> 100M rows, 100M distance computations per query. <button class="term" type="button" data-tip="Approximate nearest neighbor, the family of indexes trading a little recall for large speed gains, for example HNSW, IVF and DiskANN">ANN search</button> trades a sliver of recall for log-scale speed.</li>
+          <li><b>HNSW:</b> layered proximity graph, enter zoomed out and refine downward, about log(n) hops. No training pass, tolerates updates, but memory hungry: the graph lives in RAM.</li>
+          <li><b>IVFFlat:</b> cluster vectors into lists at build time, probe only the nearest few lists per query. Less memory, but needs a training pass and recall drops on skewed or drifting data.</li>
+          <li><b>Recall vs latency:</b> raise ef_search (HNSW) or nprobe (IVF) for recall, lower for speed. Defaults are usually safe; check recall against a brute-force sample of your own data.</li>
+        </ul>
+        <h4>Trade-offs</h4>
+        <ul>
+          <li><b>pro:</b> zero new infrastructure, vectors join app data, transactions and backups free</li>
+          <li><b>con:</b> tuning is on you; walls past the low millions of rows per table, pgvectorscale for tens of millions</li>
+        </ul>
+      </div></div></div>
+    </div>
+
+    <div class="sol-item">
+      <button class="sol-head" type="button">
+        <span class="sol-no">B</span>
+        <span class="sol-name">Dedicated vector store <span class="sol-tag advanced">scale</span></span>
+        <span class="sol-sum">Qdrant, Weaviate, Pinecone, Milvus · built for vectors end to end</span>
+        <span class="sol-chev">▶</span>
+      </button>
+      <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+        <h4>How it works</h4>
+        <ul>
+          <li>Quantization, filterable indexes, scale-out and managed options built in. The whole engine assumes vectors.</li>
+          <li>Wins at large scale, heavy filtered search, or when vectors ARE the product.</li>
+        </ul>
+        <h4>Trade-offs</h4>
+        <ul>
+          <li><b>pro:</b> scale, filtered-search speed, quantization, managed options</li>
+          <li><b>con:</b> one more system to run and keep in sync, vendor lock and egress costs on managed ones</li>
+        </ul>
+      </div></div></div>
+    </div>
+
+    <div class="sol-item">
+      <button class="sol-head" type="button">
+        <span class="sol-no">C</span>
+        <span class="sol-name">In-process index <span class="sol-tag cheap">proto</span></span>
+        <span class="sol-sum">Chroma-style · the index lives inside your process, zero services</span>
+        <span class="sol-chev">▶</span>
+      </button>
+      <div class="sol-body"><div class="sol-inner"><div class="sol-content">
+        <h4>How it works</h4>
+        <ul>
+          <li>The index is a library or local file: minutes to first query, nothing to operate.</li>
+          <li>For notebooks, spikes and demos where the corpus fits in memory.</li>
+        </ul>
+        <h4>Trade-offs</h4>
+        <ul>
+          <li><b>pro:</b> fastest start, no infrastructure, free</li>
+          <li><b>con:</b> a starter kit, not a database. No concurrency, permissions or backup story, rebuild on restart</li>
+        </ul>
+      </div></div></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="wcard">
+      <h4>choosing the model</h4>
+      <ul>
+        <li><b>General models first:</b> a strong general model beats a clever pipeline on a weak one.</li>
+        <li><b>Domain when jargon is dense:</b> code (Voyage), multilingual (BGE-M3, Cohere embed v3), finance and biology (Voyage domain models). Wins show up as recall on your rare terms.</li>
+        <li><b>Leaderboards are a start:</b> rankings age fast and test tasks that are not yours. Run two or three candidates on your own golden queries, see <a class="xl" href="../08-evals/evals.html">evals</a>.</li>
+        <li><b>Etiquette matters:</b> E5-style models need "query:" and "passage:" prefixes, Cohere wants an input_type. Skip them and quality quietly tanks.</li>
+      </ul>
+    </div>
+    <div class="wcard">
+      <h4>dimensions · storage · MRL</h4>
+      <ul>
+        <li><b>The ladder:</b> 384 dims for mini models (fast, fuzzy) · 768 to 1024 the open-weight sweet spot (BGE, E5) · 1536 the sensible API default (3-small) · 3072 max quality and max cost (3-large).</li>
+        <li><b>Storage math:</b> rows × dims × 4 bytes (float32). One million chunks at 1536 dims is about 6 GB before index overhead; budget roughly double for HNSW.</li>
+        <li><b><button class="term" type="button" data-tip="Matryoshka Representation Learning, vectors trained so the first N dims stay useful alone, so a 3072-dim vector can be truncated to the first 256 without re-embedding">Matryoshka (MRL)</button>:</b> embed once at full width, truncate to the first N dims for cheaper storage and comparisons, re-normalize after truncating. No re-embedding when the tradeoff changes.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2 class="stage-label sl-when" id="when-to-use-when-not">Decision boundary</h2>
+  <div class="pc">
+    <div class="pc-col pros"><h4 class="pc-h">Use when</h4><ul>
+      <li>Postgres already runs the app → pgvector + HNSW first</li>
+      <li>Scale, heavy filters, or vectors are the product → dedicated store</li>
+      <li>Notebook, spike or demo → in-process index</li>
+      <li>Jargon-dense corpus (code, finance, biology) → domain model</li>
+      <li>Bulk cost pressure → fewer dims or MRL truncation</li>
+    </ul></div>
+    <div class="pc-col cons"><h4 class="pc-h">Skip when</h4><ul>
+      <li>Dedicated store while pgvector passes recall at your p99</li>
+      <li>pgvector past tens of millions of rows without a tuning budget</li>
+      <li>In-process for anything production</li>
+      <li>Leaderboards as the decision, test on your own queries</li>
+      <li>Full 3072 dims when a truncated 1024 passes evals</li>
+    </ul></div>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Model</th><th class="hu">Use when</th><th class="ha">Avoid when</th><th class="hw">Watch out</th></tr></thead>
+      <tbody>
+        <tr><td class="m">text-embedding-3-small<span class="sm">OpenAI · 1536d</span></td><td class="u">The cheap API default</td><td class="avoid">Text cannot leave your infrastructure</td><td class="watch">Closed, vendor-hosted model</td></tr>
+        <tr><td class="m">text-embedding-3-large<span class="sm">OpenAI · 3072d</span></td><td class="u">Max quality, truncate via MRL</td><td class="avoid">Bulk embedding at full width</td><td class="watch">3072 dims bloat indexes, MRL down to 256 or 1024</td></tr>
+        <tr><td class="m">Cohere embed v3</td><td class="u">Multilingual, search-tuned input types</td><td class="avoid">No multilingual need, 3-small is cheaper</td><td class="watch">512-token limit, set input_type</td></tr>
+        <tr><td class="m">BGE-M3<span class="sm">open weights</span></td><td class="u">Self-hosting, 100+ languages, dense AND sparse</td><td class="avoid">No GPU or container budget</td><td class="watch">Serving infra is on you</td></tr>
+        <tr><td class="m">E5 family</td><td class="u">Open, cheap, fine-tunable baseline</td><td class="avoid">You forget the etiquette</td><td class="watch">Needs "query:" and "passage:" prefixes</td></tr>
+        <tr><td class="m">Voyage</td><td class="u">Code, finance, biology domains</td><td class="avoid">Generic web prose</td><td class="watch">Smaller ecosystem</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Store</th><th class="hu">Use when</th><th class="ha">Avoid when</th><th class="hw">Watch out</th></tr></thead>
+      <tbody>
+        <tr><td class="m">pgvector</td><td class="u">Postgres already runs your app</td><td class="avoid">Huge scale with heavy filters</td><td class="watch">Set HNSW params deliberately, pgvectorscale past tens of millions</td></tr>
+        <tr><td class="m">Qdrant</td><td class="u">Dedicated OSS, rich filtering, quantization</td><td class="avoid">No new infra allowed</td><td class="watch">Ops are yours</td></tr>
+        <tr><td class="m">Weaviate</td><td class="u">Hybrid plus modules built in</td><td class="avoid">You dislike hidden knobs</td><td class="watch">Modules obscure retrieval settings</td></tr>
+        <tr><td class="m">Milvus</td><td class="u">Very large corpora, serious infra teams</td><td class="avoid">Small team, small data</td><td class="watch">Kubernetes-native</td></tr>
+        <tr><td class="m">Pinecone</td><td class="u">Fully managed, zero ops</td><td class="avoid">Cost-sensitive, on-prem policies</td><td class="watch">Vendor lock, egress compounds</td></tr>
+        <tr><td class="m">Chroma</td><td class="u">Notebooks, prototypes</td><td class="avoid">Production anything</td><td class="watch">A starter kit, not a database</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="stage-label sl-ex" id="example">Worked example</h2>
+  <div class="example">
+    <p class="ex-note">Two phrases, zero shared keywords, one dot product. On normalized vectors the bare @ IS cosine. Store normalized too, or dot-product scores quietly favour vectors with larger norms instead of closer meaning.</p>
+    <pre class="code" data-lang="python" data-file="embed_and_compare.py"><code><span class="tk-k">from</span> openai <span class="tk-k">import</span> OpenAI
+<span class="tk-k">import</span> numpy <span class="tk-k">as</span> np
+
+client = OpenAI()
+resp = client.embeddings.create(
+    model=<span class="tk-s">"text-embedding-3-small"</span>,
+    input=[<span class="tk-s">"How do refunds work?"</span>, <span class="tk-s">"Money-back guarantee"</span>],
+)
+v = np.array([d.embedding <span class="tk-k">for</span> d <span class="tk-k">in</span> resp.data])  <span class="tk-c"># (2, 1536)</span>
+norms = np.linalg.norm(v, axis=1, keepdims=True)
+v = v / np.maximum(norms, 1e-12)
+sim = float(v[<span class="tk-n">0</span>] @ v[<span class="tk-n">1</span>])  <span class="tk-c"># cosine for normalized vectors; inspect the returned score</span></code></pre>
+    <div class="grid2">
+      <div class="wcard">
+        <h4>ticket dedup · clusters</h4>
+        <ul>
+          <li>Ten years of support tickets embedded and clustered by meaning.</li>
+          <li>Duplicates surface as near-zero-distance neighbors even with zero keywords in common. Close them in bulk.</li>
+        </ul>
+      </div>
+      <div class="wcard">
+        <h4>semantic cache · nearest answer</h4>
+        <ul>
+          <li>Repeated questions answered by nearest neighbor instead of a fresh generation, cutting cost and latency on FAQ-shaped traffic.</li>
+          <li>Scoping and staleness rules live in <a class="xl" href="../02-tokens-context/tokens-cost.html">caching</a>.</li>
+        </ul>
+      </div>
+      <div class="wcard">
+        <h4>code search · geometry</h4>
+        <ul>
+          <li>"Find a similar function" is a nearest-neighbor query over code embeddings.</li>
+          <li>Symbol names still need a lexical lane fused in, see <a class="xl" href="search-rerank.html">search and reranking</a>.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="stage-label sl-extra" id="watch-out">Failure modes</h2>
+  <div class="pit-list"><ul>
+    <li><b>Mixing embedding models:</b> query from model A, documents from model B. Different maps, so similarity is noise, with no error. Store the model id per row and assert it at query time.</li>
+    <li><b>Stale embeddings after a model swap:</b> re-embed blue/green: new column or index, backfill, verify recall, flip reads.</li>
+    <li><b>Normalization drift:</b> dot product equals cosine only on unit vectors; unnormalized rows skew distance toward long documents. Normalize at write, one metric per index.</li>
+    <li><b>Dimension confusion:</b> MRL truncation without re-normalizing, or a 1536 query against a 1024 index. Validate dims and norms at insert.</li>
+    <li><b>Threshold folklore:</b> 0.75 is not a universal "relevant" line; cosine distributions shift per model and corpus. Calibrate on labeled pairs.</li>
+    <li><b>Ignoring ANN recall:</b> a smaller index or aggressive ef_search silently drops the chunk you needed. Track recall@k against brute force, see <a class="xl" href="../08-evals/evals.html">evals</a>.</li>
+  </ul></div>
+
+  <h2 class="stage-label sl-extra" id="remember">Keep in mind</h2>
+  <div class="remember"><ul>
+    <li>One embedding model for queries AND documents, its id on every row.</li>
+    <li>Store normalized vectors, one distance metric, dims validated at insert.</li>
+    <li>Try MRL truncation before paying full width.</li>
+    <li>Start with pgvector + HNSW when Postgres is already there; move on a measured wall.</li>
+    <li>Calibrate similarity thresholds on your own corpus.</li>
+    <li>Re-embed the whole corpus on any model change, blue/green.</li>
+    <li>Track ANN recall@k so speed wins never silently eat quality.</li>
+  </ul></div>
+  
+    <section class="references" aria-labelledby="primary-sources"><h2 id="primary-sources">Primary sources</h2><ul><li><a href="https://arxiv.org/abs/1908.10084" rel="noreferrer">Sentence-BERT</a></li><li><a href="https://github.com/facebookresearch/faiss" rel="noreferrer">FAISS similarity search library</a></li></ul></section>
+
+    <section class="lab-check" aria-labelledby="try-verify-explain"><h2 id="try-verify-explain">Try, verify, explain</h2><ol><li>Compare a query vector against two toy candidates using cosine similarity. Explain why the higher score is a candidate ranking signal, not proof of relevance.</li><li>Compute raw vector storage for 2 million chunks at 1536 float32 dims, then at 256 dims after MRL truncation, and double each for HNSW overhead. Which index fits in 16 GB of RAM?</li><li>Explain why querying a model-A index with a model-B query vector returns plausible-looking results and no error, and which per-row check catches it.</li></ol></section>
+
+    <nav class="pager" id="pager"></nav>
+
+    <footer class="footer">
+      learning-project · tracks/ai · press ⌘K or / to search every chapter · diagrams load Mermaid from a CDN when online
+    </footer>
+  </div>
+</main>
+
+<script src="../../js/app.js"></script>
+</body>
+</html>
